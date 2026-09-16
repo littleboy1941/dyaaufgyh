@@ -13,21 +13,8 @@ jobs:
     timeout-minutes: 360
 
     steps:
-      - name: Free disk space
-        run: |
-          df -h /
-          XCODE_VERSION=26.2
-          for x in /Applications/Xcode_*.app; do
-            case "$x" in
-              /Applications/Xcode_${XCODE_VERSION}.app|/Applications/Xcode_${XCODE_VERSION}.0.app) ;;
-              *) sudo rm -rf "$x" ;;
-            esac
-          done
-          sudo rm -rf ~/Library/Android /usr/local/share/dotnet /usr/local/lib/node_modules \
-            ~/.dotnet ~/.ghcup /opt/hostedtoolcache || true
-          xcrun simctl delete all || true
-          sudo rm -rf ~/Library/Developer/CoreSimulator/Caches || true
-          df -h /
+      - name: Disk space
+        run: df -h /
 
       - uses: actions/checkout@v4
         with:
@@ -53,8 +40,19 @@ jobs:
           cd /Users/Shared/telegram-ios
           BUILD_NUMBER=$(( $(git rev-list --count HEAD) + $(cat build_number_offset) ))
 
+          # versions.json pins only the darwin-arm64 Bazel hash; on Intel fetch the
+          # official x86_64 binary and verify it against the release checksum
+          BAZEL_VERSION=$(python3 -c 'import json;print(json.load(open("versions.json"))["bazel"].split(":")[0])')
+          BAZEL="$PWD/build-input/bazel-$BAZEL_VERSION-darwin-x86_64"
+          mkdir -p build-input
+          curl -fsSL -o "$BAZEL" "https://github.com/bazelbuild/bazel/releases/download/$BAZEL_VERSION/bazel-$BAZEL_VERSION-darwin-x86_64"
+          curl -fsSL "https://github.com/bazelbuild/bazel/releases/download/$BAZEL_VERSION/bazel-$BAZEL_VERSION-darwin-x86_64.sha256" \
+            | sed "s#bazel-.*#$BAZEL#" | shasum -a 256 -c -
+          chmod +x "$BAZEL"
+
           python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
           python3 -u build-system/Make/Make.py \
+            --bazel="$BAZEL" \
             --bazelUserRoot=/private/var/tmp/_bazel_containerhost \
             build \
             --configurationPath=build-system/appstore-configuration.json \
