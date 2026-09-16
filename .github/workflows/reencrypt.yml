@@ -1,0 +1,44 @@
+name: Re-encrypt IPA
+
+# Re-encrypts an already built IPA artifact with IPA_PASSWORD_NEW, e.g. when
+# the IPA_PASSWORD value is lost. Nothing is printed: the repo and its logs are public.
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Build run id whose ipa-encrypted artifact to re-encrypt'
+        required: true
+
+permissions:
+  actions: read
+
+jobs:
+  reencrypt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ipa-encrypted
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: in
+
+      - name: Re-encrypt
+        env:
+          IPA_PASSWORD: ${{ secrets.IPA_PASSWORD }}
+          IPA_PASSWORD_NEW: ${{ secrets.IPA_PASSWORD_NEW }}
+        run: |
+          test -n "$IPA_PASSWORD" && test -n "$IPA_PASSWORD_NEW"
+          mkdir -p plain out
+          7z x -p"$IPA_PASSWORD" -oplain in/Telegram.ipa.7z > /dev/null
+          (cd plain && 7z a -t7z -mhe=on -p"$IPA_PASSWORD_NEW" ../out/Telegram.ipa.7z Telegram.ipa > /dev/null)
+          rm -rf plain
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ipa-encrypted
+          path: out/Telegram.ipa.7z
+          compression-level: 0
+          retention-days: 3
