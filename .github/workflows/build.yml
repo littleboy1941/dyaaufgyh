@@ -101,17 +101,19 @@ jobs:
           chmod +x "$BAZEL"
 
           # The standard runner (4 CPU / 14 GB) lost connection after ~75 min of an
-          # unthrottled build; keep Bazel and Swift workers from starving it.
+          # unthrottled build and hung at the end of a debug build (the runner has no
+          # swap); keep Bazel and Swift workers from exhausting memory.
           cat >> .bazelrc <<'EOF'
-          build --jobs=3
+          build --jobs=2
           build --local_resources=cpu=HOST_CPUS-1
           build --local_resources=memory=HOST_RAM*.5
-          build --worker_max_instances=2
+          build --worker_max_instances=1
           EOF
 
           # Resource log to diagnose runner starvation
           ( while true; do
-              echo "[monitor] $(date -u +%H:%M:%S) $(sysctl -n vm.swapusage) load=$(sysctl -n vm.loadavg)"
+              FREE_MB=$(( $(vm_stat | awk '/Pages free/ {print $3}' | tr -d .) * 4096 / 1048576 ))
+              echo "[monitor] $(date -u +%H:%M:%S) free=${FREE_MB}MB load=$(sysctl -n vm.loadavg)"
               sleep 120
             done ) &
 
