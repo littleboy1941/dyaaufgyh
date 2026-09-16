@@ -47,12 +47,17 @@ EOF
 PLIST="$(mktemp)"
 security cms -D -i "$SRC/profiles/Telegram.mobileprovision" > "$PLIST"
 sed -i '' "s/$OFFICIAL_BUNDLE_ID/$BUNDLE_ID/g" "$PLIST"
-# No push notifications on a free Apple ID.
-plutil -remove Entitlements.aps-environment "$PLIST" || true
-plutil -remove DER-Encoded-Profile "$PLIST" || true
+# Make.py requires aps-environment in the main profile; SideStore drops
+# entitlements a free Apple ID can't have when it re-signs.
+plutil -remove DER-Encoded-Profile "$PLIST" 2>/dev/null || true
 
-security find-identity -v temp.keychain
-IDENTITY="$(security find-identity -v temp.keychain | sed -n 's/.*"\(.*\)".*/\1/p' | head -1)"
+# The self-signed identity is untrusted, so don't filter with -v.
+security find-identity temp.keychain
+IDENTITY="$(security find-identity temp.keychain | sed -n 's/.*"\(.*\)".*/\1/p' | head -1)"
+if [ -z "$IDENTITY" ]; then
+  echo "SelfSigned identity not found in temp.keychain" >&2
+  exit 1
+fi
 echo "Signing profile with identity: $IDENTITY"
 security cms -S -k temp.keychain -N "$IDENTITY" -i "$PLIST" -o "$OUT/codesigning/profiles/Telegram.mobileprovision"
 rm -f "$PLIST"
