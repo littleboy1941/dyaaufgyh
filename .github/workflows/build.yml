@@ -8,6 +8,11 @@ on:
         type: choice
         options: [sideload, official]
         default: sideload
+      mode:
+        description: 'debug = fast iterations (no whole-module optimization), release = optimized'
+        type: choice
+        options: [debug, release]
+        default: debug
 
 concurrency:
   group: build
@@ -46,11 +51,32 @@ jobs:
           mv "$GITHUB_WORKSPACE" /Users/Shared/telegram-ios
           mkdir -p "$GITHUB_WORKSPACE"
 
+      # Bazel disk cache survives between runs in the GitHub cache. The key changes
+      # with the toolchain/dependency pins; within a key every run saves a fresh
+      # entry and the next run restores the newest one.
+      - name: Bazel cache key
+        id: cache-key
+        run: |
+          cd /Users/Shared/telegram-ios
+          HASH=$(cat versions.json MODULE.bazel.lock .bazelrc <(git submodule status) | shasum -a 256 | cut -c1-16)
+          echo "base=bazel-${{ inputs.mode }}-${{ inputs.configuration }}-$HASH" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Bazel cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /Users/Shared/bazel-disk-cache
+          key: ${{ steps.cache-key.outputs.base }}-${{ github.run_id }}
+          restore-keys: ${{ steps.cache-key.outputs.base }}-
+
+      - name: Bazel cache size (restored)
+        run: du -sh /Users/Shared/bazel-disk-cache 2>/dev/null || echo "no cache"
+
       - name: Build
         env:
           TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
           TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
           BUILD_CONFIGURATION: ${{ inputs.configuration }}
+          BUILD_MODE: ${{ inputs.mode }}
         run: |
           set -x
           cd /Users/Shared/telegram-ios
@@ -98,13 +124,32 @@ jobs:
             build \
             --configurationPath="$CONFIGURATION_PATH" \
             --codesigningInformationPath="$CODESIGNING_PATH" \
-            --configuration=release_arm64 \
+            --cacheDir=/Users/Shared/bazel-disk-cache             --configuration="${BUILD_MODE}_arm64" \
             --buildNumber="$BUILD_NUMBER" \
             --outputBuildArtifactsPath=build/artifacts
 
       - name: Report disk usage
         if: always()
         run: df -h /
+
+      # The whole repo gets 10 GB of cache; don't try to save an entry that can't fit.
+      - name: Check Bazel cache size
+        id: cache-size
+        if: always()
+        run: |
+          KB=$(du -sk /Users/Shared/bazel-disk-cache 2>/dev/null | cut -f1)
+          KB=${KB:-0}
+          echo "Bazel disk cache: $((KB / 1024)) MB"
+          if [ "$KB" -gt 0 ] && [ "$KB" -lt $((9 * 1024 * 1024)) ]; then
+            echo "save=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Save Bazel cache
+        if: always() && steps.cache-size.outputs.save == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /Users/Shared/bazel-disk-cache
+          key: ${{ steps.cache-key.outputs.base }}-${{ github.run_id }}
 
       # Artifacts of a public repo are downloadable by anyone and the IPA embeds
       # our API keys, so only an AES-256 encrypted archive is published.
