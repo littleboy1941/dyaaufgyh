@@ -1,0 +1,71 @@
+name: Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-26-intel
+    timeout-minutes: 360
+
+    steps:
+      - name: Free disk space
+        run: |
+          df -h /
+          XCODE_VERSION=26.2
+          for x in /Applications/Xcode_*.app; do
+            case "$x" in
+              /Applications/Xcode_${XCODE_VERSION}.app|/Applications/Xcode_${XCODE_VERSION}.0.app) ;;
+              *) sudo rm -rf "$x" ;;
+            esac
+          done
+          sudo rm -rf ~/Library/Android /usr/local/share/dotnet /usr/local/lib/node_modules \
+            ~/.dotnet ~/.ghcup /opt/hostedtoolcache || true
+          xcrun simctl delete all || true
+          sudo rm -rf ~/Library/Developer/CoreSimulator/Caches || true
+          df -h /
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Select Xcode
+        run: |
+          XCODE_VERSION=$(python3 -c 'import json;print(json.load(open("versions.json"))["xcode"])')
+          sudo xcode-select -s /Applications/Xcode_$XCODE_VERSION.app/Contents/Developer
+          xcodebuild -version
+
+      - name: Move sources to canonical directory
+        run: |
+          sudo mkdir -p /Users/Shared
+          sudo chown "$USER" /Users/Shared
+          mv "$GITHUB_WORKSPACE" /Users/Shared/telegram-ios
+          mkdir -p "$GITHUB_WORKSPACE"
+
+      - name: Build
+        run: |
+          set -x
+          cd /Users/Shared/telegram-ios
+          BUILD_NUMBER=$(( $(git rev-list --count HEAD) + $(cat build_number_offset) ))
+
+          python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
+          python3 -u build-system/Make/Make.py \
+            --bazelUserRoot=/private/var/tmp/_bazel_containerhost \
+            build \
+            --configurationPath=build-system/appstore-configuration.json \
+            --codesigningInformationPath=build-system/fake-codesigning \
+            --configuration=release_arm64 \
+            --buildNumber="$BUILD_NUMBER" \
+            --outputBuildArtifactsPath=build/artifacts
+
+      - name: Report disk usage
+        if: always()
+        run: df -h /
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ipa
+          path: /Users/Shared/telegram-ios/build/artifacts/Telegram.ipa
+          retention-days: 3
