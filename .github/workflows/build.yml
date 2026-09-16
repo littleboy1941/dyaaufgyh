@@ -120,11 +120,11 @@ jobs:
 
           python3 -u build-system/Make/Make.py \
             --bazel="$BAZEL" \
-            --bazelUserRoot=/private/var/tmp/_bazel_containerhost \
+            --bazelUserRoot=/private/var/tmp/_bazel_containerhost             --cacheDir=/Users/Shared/bazel-disk-cache \
             build \
             --configurationPath="$CONFIGURATION_PATH" \
             --codesigningInformationPath="$CODESIGNING_PATH" \
-            --cacheDir=/Users/Shared/bazel-disk-cache             --configuration="${BUILD_MODE}_arm64" \
+            --configuration="${BUILD_MODE}_arm64" \
             --buildNumber="$BUILD_NUMBER" \
             --outputBuildArtifactsPath=build/artifacts
 
