@@ -30,7 +30,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 0
+          # Shallow checkout of the repo and all submodules (WebRTC etc. are huge)
+          fetch-depth: 1
 
       - name: Select Xcode
         run: |
@@ -53,12 +54,15 @@ jobs:
 
       # Bazel disk cache survives between runs in the GitHub cache. The key changes
       # with the toolchain/dependency pins; within a key every run saves a fresh
-      # entry and the next run restores the newest one.
+      # entry and the next run restores the newest one. The disk cache is content
+      # addressed, so falling back to an entry with other pins is safe: unused
+      # entries are pruned after the build.
       - name: Bazel cache key
         id: cache-key
         run: |
           cd /Users/Shared/telegram-ios
-          HASH=$(cat versions.json MODULE.bazel.lock .bazelrc <(git submodule status) | shasum -a 256 | cut -c1-16)
+          HASH=$(cat versions.json MODULE.bazel.lock .bazelrc <(git ls-tree -r HEAD | grep '^160000') | shasum -a 256 | cut -c1-16)
+          echo "prefix=bazel-${{ inputs.mode }}-${{ inputs.configuration }}-" >> "$GITHUB_OUTPUT"
           echo "base=bazel-${{ inputs.mode }}-${{ inputs.configuration }}-$HASH" >> "$GITHUB_OUTPUT"
 
       - name: Restore Bazel cache
@@ -66,7 +70,9 @@ jobs:
         with:
           path: /Users/Shared/bazel-disk-cache
           key: ${{ steps.cache-key.outputs.base }}-${{ github.run_id }}
-          restore-keys: ${{ steps.cache-key.outputs.base }}-
+          restore-keys: |
+            ${{ steps.cache-key.outputs.base }}-
+            ${{ steps.cache-key.outputs.prefix }}
 
       - name: Bazel cache size (restored)
         run: du -sh /Users/Shared/bazel-disk-cache 2>/dev/null || echo "no cache"
@@ -80,7 +86,9 @@ jobs:
         run: |
           set -x
           cd /Users/Shared/telegram-ios
-          BUILD_NUMBER=$(( $(git rev-list --count HEAD) + $(cat build_number_offset) ))
+          # History is shallow, so number builds by workflow run; the offset keeps
+          # numbers above the first builds (3737).
+          BUILD_NUMBER=$(( ${{ github.run_number }} + 4000 ))
 
           # versions.json pins only the darwin-arm64 Bazel hash; on Intel fetch the
           # official x86_64 binary and verify it against the release checksum
@@ -118,6 +126,12 @@ jobs:
             CODESIGNING_PATH=build-input/sideload/codesigning
           fi
 
+          CACHE=/Users/Shared/bazel-disk-cache
+          mkdir -p "$CACHE"
+          (cd "$CACHE" && find . -type f | sort) > /Users/Shared/cache-before.txt
+          touch /Users/Shared/cache-marker
+          sleep 1
+
           python3 -u build-system/Make/Make.py \
             --bazel="$BAZEL" \
             --bazelUserRoot=/private/var/tmp/_bazel_containerhost \
@@ -128,6 +142,17 @@ jobs:
             --configuration="${BUILD_MODE}_arm64" \
             --buildNumber="$BUILD_NUMBER" \
             --outputBuildArtifactsPath=build/artifacts
+
+          # Bazel refreshes mtime on every disk cache hit: after a successful build
+          # drop entries this build didn't use so the cache doesn't grow forever.
+          USED=$(find "$CACHE" -type f -newer /Users/Shared/cache-marker | wc -l)
+          TOTAL=$(find "$CACHE" -type f | wc -l)
+          echo "Disk cache: $USED of $TOTAL files used by this build"
+          # Guard: if mtimes weren't refreshed, pruning would wipe a good cache
+          if [ "$USED" -gt 1000 ]; then
+            find "$CACHE" -type f ! -newer /Users/Shared/cache-marker -delete
+            find "$CACHE" -type d -empty -delete
+          fi
 
       - name: Report disk usage
         if: always()
@@ -141,7 +166,10 @@ jobs:
           KB=$(du -sk /Users/Shared/bazel-disk-cache 2>/dev/null | cut -f1)
           KB=${KB:-0}
           echo "Bazel disk cache: $((KB / 1024)) MB"
-          if [ "$KB" -gt 0 ] && [ "$KB" -lt $((9 * 1024 * 1024)) ]; then
+          (cd /Users/Shared/bazel-disk-cache 2>/dev/null && find . -type f | sort) > /Users/Shared/cache-after.txt || true
+          if cmp -s /Users/Shared/cache-before.txt /Users/Shared/cache-after.txt; then
+            echo "Cache content unchanged, nothing to save"
+          elif [ "$KB" -gt 0 ] && [ "$KB" -lt $((9 * 1024 * 1024)) ]; then
             echo "save=true" >> "$GITHUB_OUTPUT"
           fi
 
@@ -160,7 +188,8 @@ jobs:
         run: |
           test -n "$IPA_PASSWORD"
           cd /Users/Shared/telegram-ios/build/artifacts
-          7z a -t7z -mhe=on -p"$IPA_PASSWORD" Telegram.ipa.7z Telegram.ipa > /dev/null
+          # The IPA is already a zip: store only (-mx=0), encryption is what matters
+          7z a -t7z -mx=0 -mhe=on -p"$IPA_PASSWORD" Telegram.ipa.7z Telegram.ipa > /dev/null
           rm Telegram.ipa
           ls -la
 
