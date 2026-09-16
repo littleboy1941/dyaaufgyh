@@ -32,6 +32,12 @@ jobs:
           XCODE_VERSION=$(python3 -c 'import json;print(json.load(open("versions.json"))["xcode"])')
           sudo xcode-select -s /Applications/Xcode_$XCODE_VERSION.app/Contents/Developer
           xcodebuild -version
+          # Since Xcode 26 the Metal toolchain is a separate download and some
+          # runner images don't have it installed
+          if ! xcrun metal -v >/dev/null 2>&1; then
+            xcodebuild -downloadComponent MetalToolchain
+          fi
+          xcrun metal -v
 
       - name: Move sources to canonical directory
         run: |
