@@ -4440,14 +4440,41 @@ func replayFinalState(
                     }
                 }
             case let .DeleteMessagesWithGlobalIds(ids):
+                var savedGlobalIds = Set<Int32>()
+                let deletionTimestamp = Int32(Date().timeIntervalSince1970)
+                for messageId in transaction.messageIdsForGlobalIds(ids) {
+                    guard messageId.namespace == Namespaces.Message.Cloud,
+                          messageId.peerId.namespace == Namespaces.Peer.CloudUser,
+                          messageId.peerId.id._internalGetInt64Value() != 777000,
+                          let message = transaction.getMessage(messageId),
+                          !message.text.isEmpty,
+                          let user = transaction.getPeer(messageId.peerId) as? TelegramUser,
+                          user.botInfo == nil else {
+                        continue
+                    }
+
+                    savedGlobalIds.insert(messageId.id)
+                    if message.ayuDeletedDate == nil {
+                        transaction.updateMessage(messageId, update: { currentMessage in
+                            guard currentMessage.ayuDeletedDate == nil else {
+                                return .skip
+                            }
+                            var attributes = currentMessage.attributes
+                            attributes.append(AyuDeletedMessageAttribute(date: deletionTimestamp))
+                            return .update(StoreMessage(id: currentMessage.id, customStableId: nil, globallyUniqueId: currentMessage.globallyUniqueId, groupingKey: currentMessage.groupingKey, threadId: currentMessage.threadId, timestamp: currentMessage.timestamp, flags: StoreMessageFlags(currentMessage.flags), tags: currentMessage.tags, globalTags: currentMessage.globalTags, localTags: currentMessage.localTags, forwardInfo: currentMessage.forwardInfo.flatMap(StoreMessageForwardInfo.init), authorId: currentMessage.author?.id, text: currentMessage.text, attributes: attributes, media: currentMessage.media))
+                        })
+                    }
+                }
+
+                let idsToDelete = ids.filter { !savedGlobalIds.contains($0) }
                 var resourceIds: [MediaResourceId] = []
-                transaction.deleteMessagesWithGlobalIds(ids, forEachMedia: { media in
+                transaction.deleteMessagesWithGlobalIds(idsToDelete, forEachMedia: { media in
                     addMessageMediaResourceIdsToRemove(media: media, resourceIds: &resourceIds)
                 })
                 if !resourceIds.isEmpty {
                     let _ = mediaBox.removeCachedResources(Array(Set(resourceIds)), force: true).start()
                 }
-                deletedMessageIds.append(contentsOf: ids.map { .global($0) })
+                deletedMessageIds.append(contentsOf: idsToDelete.map { .global($0) })
             case let .DeleteMessages(ids):
                 _internal_deleteMessages(transaction: transaction, mediaBox: mediaBox, ids: ids, manualAddMessageThreadStatsDifference: { id, add, remove in
                     addMessageThreadStatsDifference(threadKey: id, remove: remove, addedMessagePeer: nil, addedMessageId: nil, isOutgoing: false)

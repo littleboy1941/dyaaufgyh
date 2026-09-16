@@ -248,5 +248,9 @@ public func stringForMessageTimestampStatus(
         }
     }
     
+    if message.attributes.contains(where: { $0 is AyuDeletedMessageAttribute }) {
+        dateText = "🗑 \(dateText)"
+    }
+
     return dateText
 }
