@@ -2,6 +2,12 @@ name: Build
 
 on:
   workflow_dispatch:
+    inputs:
+      configuration:
+        description: 'sideload = our bundle id and API keys, official = stock Telegram config (control build)'
+        type: choice
+        options: [sideload, official]
+        default: sideload
 
 concurrency:
   group: build
@@ -35,6 +41,10 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE"
 
       - name: Build
+        env:
+          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+          BUILD_CONFIGURATION: ${{ inputs.configuration }}
         run: |
           set -x
           cd /Users/Shared/telegram-ios
@@ -66,12 +76,22 @@ jobs:
             done ) &
 
           python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
+
+          if [ "$BUILD_CONFIGURATION" = "official" ]; then
+            CONFIGURATION_PATH=build-system/appstore-configuration.json
+            CODESIGNING_PATH=build-system/fake-codesigning
+          else
+            bash build-system/sideload/prepare.sh build-input/sideload
+            CONFIGURATION_PATH=build-input/sideload/configuration.json
+            CODESIGNING_PATH=build-input/sideload/codesigning
+          fi
+
           python3 -u build-system/Make/Make.py \
             --bazel="$BAZEL" \
             --bazelUserRoot=/private/var/tmp/_bazel_containerhost \
             build \
-            --configurationPath=build-system/appstore-configuration.json \
-            --codesigningInformationPath=build-system/fake-codesigning \
+            --configurationPath="$CONFIGURATION_PATH" \
+            --codesigningInformationPath="$CODESIGNING_PATH" \
             --configuration=release_arm64 \
             --buildNumber="$BUILD_NUMBER" \
             --outputBuildArtifactsPath=build/artifacts
@@ -80,9 +100,22 @@ jobs:
         if: always()
         run: df -h /
 
-      - name: Upload IPA
+      # Artifacts of a public repo are downloadable by anyone and the IPA embeds
+      # our API keys, so only an AES-256 encrypted archive is published.
+      - name: Encrypt IPA
+        env:
+          IPA_PASSWORD: ${{ secrets.IPA_PASSWORD }}
+        run: |
+          test -n "$IPA_PASSWORD"
+          cd /Users/Shared/telegram-ios/build/artifacts
+          7z a -t7z -mhe=on -p"$IPA_PASSWORD" Telegram.ipa.7z Telegram.ipa > /dev/null
+          rm Telegram.ipa
+          ls -la
+
+      - name: Upload encrypted IPA
         uses: actions/upload-artifact@v4
         with:
-          name: ipa
-          path: /Users/Shared/telegram-ios/build/artifacts/Telegram.ipa
+          name: ipa-encrypted
+          path: /Users/Shared/telegram-ios/build/artifacts/Telegram.ipa.7z
+          compression-level: 0
           retention-days: 3
