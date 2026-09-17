@@ -2785,6 +2785,12 @@ func chatAvailableMessageActionsImpl(engine: TelegramEngine, accountPeerId: Engi
                 }
             }
             
+            // AyuGram: a kept deleted message is gone on the server, it can only be removed locally
+            if let message = getMessage(id), message.attributes.contains(where: { $0 is AyuDeletedMessageAttribute }) {
+                optionsMap[id]!.remove(.deleteGlobally)
+                optionsMap[id]!.insert(.deleteLocally)
+            }
+            
             if !isShareProtected && !isExternalShareProtected {
                 optionsMap[id]!.insert(.externalShare)
             }

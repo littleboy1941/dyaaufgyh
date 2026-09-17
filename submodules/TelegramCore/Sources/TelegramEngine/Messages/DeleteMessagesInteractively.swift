@@ -120,6 +120,10 @@ func deleteMessagesInteractively(transaction: Transaction, stateManager: Account
                 if id.namespace == Namespaces.Message.Local || id.namespace == Namespaces.Message.ScheduledLocal || id.namespace == Namespaces.Message.QuickReplyLocal || id.namespace == Namespaces.Message.EphemeralLocal {
                     return false
                 }
+                // AyuGram: a kept deleted message no longer exists on the server, remove it only locally
+                if transaction.getMessage(id)?.ayuDeletedDate != nil {
+                    return false
+                }
                 return true
             }
             if !remoteMessageIds.isEmpty {
