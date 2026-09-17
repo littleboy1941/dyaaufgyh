@@ -26,6 +26,7 @@ private enum AyuSettingsToggle: Int32 {
     case saveDeletedFromBots
     case saveDeletedMedia
     case saveEditHistory
+    case keepSelfDestructingMedia
 
     var keyPath: WritableKeyPath<AyuSettings, Bool> {
         switch self {
@@ -43,6 +44,8 @@ private enum AyuSettingsToggle: Int32 {
             return \.saveDeletedMedia
         case .saveEditHistory:
             return \.saveEditHistory
+        case .keepSelfDestructingMedia:
+            return \.keepSelfDestructingMedia
         }
     }
 
@@ -62,6 +65,8 @@ private enum AyuSettingsToggle: Int32 {
             return "Сохранять медиа"
         case .saveEditHistory:
             return "Сохранять историю правок"
+        case .keepSelfDestructingMedia:
+            return "Сохранять одноразовые медиа"
         }
     }
 }
@@ -70,6 +75,7 @@ private enum AyuSettingsSection: Int32 {
     case deleted
     case deletedScope
     case edits
+    case selfDestructing
 }
 
 private enum AyuSettingsEntry: ItemListNodeEntry {
@@ -79,6 +85,8 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
     case scopeFooter
     case editsHeader
     case editsFooter
+    case selfDestructingHeader
+    case selfDestructingFooter
 
     var section: ItemListSectionId {
         switch self {
@@ -90,6 +98,8 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
                 return AyuSettingsSection.deleted.rawValue
             case .saveEditHistory:
                 return AyuSettingsSection.edits.rawValue
+            case .keepSelfDestructingMedia:
+                return AyuSettingsSection.selfDestructing.rawValue
             default:
                 return AyuSettingsSection.deletedScope.rawValue
             }
@@ -97,6 +107,8 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
             return AyuSettingsSection.deletedScope.rawValue
         case .editsHeader, .editsFooter:
             return AyuSettingsSection.edits.rawValue
+        case .selfDestructingHeader, .selfDestructingFooter:
+            return AyuSettingsSection.selfDestructing.rawValue
         }
     }
 
@@ -111,6 +123,8 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
                 return 1
             case .saveEditHistory:
                 return 301
+            case .keepSelfDestructingMedia:
+                return 401
             default:
                 return 100 + toggle.rawValue
             }
@@ -122,6 +136,10 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
             return 300
         case .editsFooter:
             return 302
+        case .selfDestructingHeader:
+            return 400
+        case .selfDestructingFooter:
+            return 402
         }
     }
 
@@ -144,6 +162,10 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
             return ItemListSectionHeaderItem(presentationData: presentationData, text: "ИСТОРИЯ ПРАВОК", sectionId: self.section)
         case .editsFooter:
             return ItemListTextItem(presentationData: presentationData, text: .plain("Прежние версии изменённых сообщений собеседников. Открываются через меню сообщения ▸ «История правок»."), sectionId: self.section)
+        case .selfDestructingHeader:
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: "ОДНОРАЗОВЫЕ МЕДИА", sectionId: self.section)
+        case .selfDestructingFooter:
+            return ItemListTextItem(presentationData: presentationData, text: .plain("Фото, видео, голосовые и кружки с таймером или «просмотр один раз» не исчезают: у вас они выглядят неоткрытыми и открываются сколько угодно раз, а собеседник видит, что медиа просмотрено. Отметка уходит после полной загрузки файла."), sectionId: self.section)
         case .scopeFooter:
             return ItemListTextItem(presentationData: presentationData, text: .plain("Медиа удалённых сообщений не стирается ни ручной очисткой кэша, ни автоудалением по сроку хранения. Исключение — лимит размера кэша: при нём старые файлы могут удалиться."), sectionId: self.section)
         }
@@ -168,6 +190,10 @@ private func ayuSettingsEntries(settings: AyuSettings) -> [AyuSettingsEntry] {
     entries.append(.editsHeader)
     entries.append(.toggle(.saveEditHistory, settings.saveEditHistory))
     entries.append(.editsFooter)
+
+    entries.append(.selfDestructingHeader)
+    entries.append(.toggle(.keepSelfDestructingMedia, settings.keepSelfDestructingMedia))
+    entries.append(.selfDestructingFooter)
 
     return entries
 }

@@ -884,14 +884,15 @@ private func validateBatch(postbox: Postbox, network: Network, transaction: Tran
                                         }
                                     }
                                     
-                                    ayuRecordEdits(transaction: transaction, messages: [message])
+                                    let ayuMessage = ayuPreservingSelfDestructingMedia(transaction: transaction, incoming: message)
+                                    ayuRecordEdits(transaction: transaction, messages: [ayuMessage])
                                     transaction.updateMessage(id, update: { currentMessage in
                                         if updatedTimestamp != timestamp {
-                                            var updatedLocalTags = message.localTags
+                                            var updatedLocalTags = ayuMessage.localTags
                                             if currentMessage.localTags.contains(.OutgoingLiveLocation) {
                                                 updatedLocalTags.insert(.OutgoingLiveLocation)
                                             }
-                                            return .update(message.withUpdatedLocalTags(updatedLocalTags))
+                                            return .update(ayuMessage.withUpdatedLocalTags(updatedLocalTags))
                                         } else {
                                             var storeForwardInfo: StoreMessageForwardInfo?
                                             if let forwardInfo = currentMessage.forwardInfo {
@@ -1132,14 +1133,15 @@ private func validateReplyThreadBatch(postbox: Postbox, network: Network, transa
                                     }
                                 }
                                 
-                                ayuRecordEdits(transaction: transaction, messages: [message])
+                                let ayuMessage = ayuPreservingSelfDestructingMedia(transaction: transaction, incoming: message)
+                                ayuRecordEdits(transaction: transaction, messages: [ayuMessage])
                                 transaction.updateMessage(id, update: { currentMessage in
                                     if updatedTimestamp != timestamp {
-                                        var updatedLocalTags = message.localTags
+                                        var updatedLocalTags = ayuMessage.localTags
                                         if currentMessage.localTags.contains(.OutgoingLiveLocation) {
                                             updatedLocalTags.insert(.OutgoingLiveLocation)
                                         }
-                                        return .update(message.withUpdatedLocalTags(updatedLocalTags))
+                                        return .update(ayuMessage.withUpdatedLocalTags(updatedLocalTags))
                                     } else {
                                         var storeForwardInfo: StoreMessageForwardInfo?
                                         if let forwardInfo = currentMessage.forwardInfo {

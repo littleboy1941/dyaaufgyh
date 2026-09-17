@@ -4257,6 +4257,7 @@ func replayFinalState(
                     }
                 }
             
+                messages = ayuPreservingSelfDestructingMedia(transaction: transaction, messages: messages)
                 ayuRecordEdits(transaction: transaction, messages: messages)
                 let _ = transaction.addMessages(messages, location: location)
                 if case .UpperHistoryBlock = location {
@@ -4499,7 +4500,8 @@ func replayFinalState(
                 if changedGroup {
                     invalidateGroupStats.insert(Namespaces.PeerGroup.archive)
                 }
-            case let .EditMessage(id, message):
+            case let .EditMessage(id, serverMessage):
+                let message = ayuPreservingSelfDestructingMedia(transaction: transaction, incoming: serverMessage)
                 ayuRecordEdit(transaction: transaction, id: id, updatedText: message.text)
                 var generatedEvent: (reactionAuthor: Peer, reaction: MessageReaction.Reaction, message: Message, timestamp: Int32)?
                 transaction.updateMessage(id, update: { previousMessage in

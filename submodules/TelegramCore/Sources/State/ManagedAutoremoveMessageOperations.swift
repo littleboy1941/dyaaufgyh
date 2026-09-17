@@ -82,7 +82,11 @@ func managedAutoremoveMessageOperations(network: Network, postbox: Postbox, isRe
                     Logger.shared.log("Autoremove", "Performing autoremove for \(entry.messageId), isRemove: \(isRemove)")
 
                     if let message = transaction.getMessage(entry.messageId) {
-                        if message.id.peerId.namespace == Namespaces.Peer.SecretChat || isRemove {
+                        if message.ayuDeletedDate != nil || ayuShouldPreserveSelfDestructingMedia(message: message, settings: ayuSettings(transaction: transaction)) {
+                            // AyuGram: kept deleted messages and kept self-destructing media are never removed
+                            transaction.clearTimestampBasedAttribute(id: entry.messageId, tag: tag)
+                            Logger.shared.log("Autoremove", "Keeping \(entry.messageId)")
+                        } else if message.id.peerId.namespace == Namespaces.Peer.SecretChat || isRemove {
                             _internal_deleteMessages(transaction: transaction, mediaBox: postbox.mediaBox, ids: [entry.messageId])
                         } else {
                             transaction.updateMessage(message.id, update: { currentMessage in

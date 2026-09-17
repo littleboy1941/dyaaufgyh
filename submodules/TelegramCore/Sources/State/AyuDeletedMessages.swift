@@ -11,8 +11,8 @@ func ayuShouldKeepDeletedMessage(transaction: Transaction, message: Message, set
     if message.media.contains(where: { $0 is TelegramMediaAction || $0 is TelegramMediaExpiredContent }) {
         return false
     }
-    // Self-destructing and view-once content keeps its own semantics
-    if message.attributes.contains(where: { $0 is AutoremoveTimeoutMessageAttribute || $0 is AutoclearTimeoutMessageAttribute }) {
+    // Self-destructing content keeps its own semantics, unless it is kept (AyuSelfDestructingMedia)
+    if message.attributes.contains(where: { $0 is AutoremoveTimeoutMessageAttribute || $0 is AutoclearTimeoutMessageAttribute }) && !ayuShouldPreserveSelfDestructingMedia(message: message, settings: settings) {
         return false
     }
 

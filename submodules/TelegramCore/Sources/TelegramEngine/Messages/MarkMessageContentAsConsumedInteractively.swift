@@ -4,6 +4,22 @@ import TelegramApi
 import SwiftSignalKit
 
 func _internal_markMessageContentAsConsumedInteractively(postbox: Postbox, messageId: MessageId) -> Signal<Void, NoError> {
+    // AyuGram: kept self-destructing media is only reported to the server, the local message stays unopened
+    return postbox.transaction { transaction -> Message? in
+        if let message = transaction.getMessage(messageId), ayuShouldPreserveSelfDestructingMedia(message: message, settings: ayuSettings(transaction: transaction)) {
+            return message
+        }
+        return nil
+    }
+    |> mapToSignal { preservedMessage -> Signal<Void, NoError> in
+        if let preservedMessage {
+            return ayuConsumeSelfDestructingMediaRemotely(postbox: postbox, message: preservedMessage)
+        }
+        return markMessageContentAsConsumedLocallyInteractively(postbox: postbox, messageId: messageId)
+    }
+}
+
+private func markMessageContentAsConsumedLocallyInteractively(postbox: Postbox, messageId: MessageId) -> Signal<Void, NoError> {
     return postbox.transaction { transaction -> Void in
         if let message = transaction.getMessage(messageId), message.flags.contains(.Incoming) {
             var updateMessage = false
@@ -175,6 +191,10 @@ func _internal_markReactionsOrPollVotesAsSeenInteractively(postbox: Postbox, mes
 
 func markMessageContentAsConsumedRemotely(transaction: Transaction, messageId: MessageId, consumeDate: Int32?) {
     if let message = transaction.getMessage(messageId) {
+        // AyuGram: our own "opened" coming back from the server must not expire kept media
+        if ayuShouldPreserveSelfDestructingMedia(message: message, settings: ayuSettings(transaction: transaction)) {
+            return
+        }
         var updateMessage = false
         var updatedAttributes = message.attributes
         var updatedMedia = message.media

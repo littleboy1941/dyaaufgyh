@@ -18,6 +18,9 @@ public struct AyuSettings: Equatable, Codable {
     // Keep previous versions of edited incoming messages
     public var saveEditHistory: Bool = true
 
+    // Self-destructing and view-once media stays in the chat and can be opened again
+    public var keepSelfDestructingMedia: Bool = true
+
     public init() {
     }
 
@@ -29,6 +32,7 @@ public struct AyuSettings: Equatable, Codable {
         case saveDeletedFromBots
         case saveDeletedMedia
         case saveEditHistory
+        case keepSelfDestructingMedia
     }
 
     // Every key is optional so that settings saved by an older build decode with defaults
@@ -42,6 +46,7 @@ public struct AyuSettings: Equatable, Codable {
         self.saveDeletedFromBots = try container.decodeIfPresent(Bool.self, forKey: .saveDeletedFromBots) ?? defaults.saveDeletedFromBots
         self.saveDeletedMedia = try container.decodeIfPresent(Bool.self, forKey: .saveDeletedMedia) ?? defaults.saveDeletedMedia
         self.saveEditHistory = try container.decodeIfPresent(Bool.self, forKey: .saveEditHistory) ?? defaults.saveEditHistory
+        self.keepSelfDestructingMedia = try container.decodeIfPresent(Bool.self, forKey: .keepSelfDestructingMedia) ?? defaults.keepSelfDestructingMedia
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -53,6 +58,7 @@ public struct AyuSettings: Equatable, Codable {
         try container.encode(self.saveDeletedFromBots, forKey: .saveDeletedFromBots)
         try container.encode(self.saveDeletedMedia, forKey: .saveDeletedMedia)
         try container.encode(self.saveEditHistory, forKey: .saveEditHistory)
+        try container.encode(self.keepSelfDestructingMedia, forKey: .keepSelfDestructingMedia)
     }
 }
 

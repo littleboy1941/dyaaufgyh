@@ -1033,8 +1033,9 @@ func fetchMessageHistoryHole(accountPeerId: PeerId, source: FetchMessageHistoryH
                     }
                     
                     return withResolvedAssociatedMessages(postbox: postbox, source: source, accountPeerId: accountPeerId, parsedPeers: parsedPeers, storeMessages: storeMessages, resolveThreads: true, { transaction, additionalParsedPeers, additionalMessages -> FetchMessageHistoryHoleResult? in
-                        ayuRecordEdits(transaction: transaction, messages: storeMessages)
-                        let _ = transaction.addMessages(storeMessages, location: .Random)
+                        let ayuStoreMessages = ayuPreservingSelfDestructingMedia(transaction: transaction, messages: storeMessages)
+                        ayuRecordEdits(transaction: transaction, messages: ayuStoreMessages)
+                        let _ = transaction.addMessages(ayuStoreMessages, location: .Random)
                         let _ = transaction.addMessages(additionalMessages, location: .Random)
                         var filledRange: ClosedRange<MessageId.Id>
                         var strictFilledIndices: IndexSet
@@ -1207,8 +1208,9 @@ func fetchChatListHole(postbox: Postbox, network: Network, accountPeerId: PeerId
             }
             
             transaction.updateCurrentPeerNotificationSettings(fetchedChats.notificationSettings)
-            ayuRecordEdits(transaction: transaction, messages: fetchedChats.storeMessages)
-            let _ = transaction.addMessages(fetchedChats.storeMessages, location: .UpperHistoryBlock)
+            let ayuStoreMessages = ayuPreservingSelfDestructingMedia(transaction: transaction, messages: fetchedChats.storeMessages)
+            ayuRecordEdits(transaction: transaction, messages: ayuStoreMessages)
+            let _ = transaction.addMessages(ayuStoreMessages, location: .UpperHistoryBlock)
             let _ = transaction.addMessages(additionalMessages, location: .Random)
             transaction.resetIncomingReadStates(fetchedChats.readStates)
             

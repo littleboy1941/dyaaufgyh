@@ -6,6 +6,7 @@ import SwiftSignalKit
 // A resource is protected if StorageBox references it from a message with AyuDeletedMessageAttribute.
 
 private func ayuProtectedIds(transaction: Transaction, entries: [StorageBox.Entry]) -> Set<Data> {
+    let settings = ayuSettings(transaction: transaction)
     var result = Set<Data>()
     var checkedMessages: [MessageId: Bool] = [:]
     for entry in entries {
@@ -18,7 +19,11 @@ private func ayuProtectedIds(transaction: Transaction, entries: [StorageBox.Entr
             if let value = checkedMessages[messageId] {
                 isDeleted = value
             } else {
-                isDeleted = transaction.getMessage(messageId)?.ayuDeletedDate != nil
+                if let message = transaction.getMessage(messageId) {
+                    isDeleted = message.ayuDeletedDate != nil || ayuShouldPreserveSelfDestructingMedia(message: message, settings: settings)
+                } else {
+                    isDeleted = false
+                }
                 checkedMessages[messageId] = isDeleted
             }
             if isDeleted {
