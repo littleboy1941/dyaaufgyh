@@ -167,7 +167,18 @@ final class AutomaticCacheEvictionContext {
                                         if !removeIds.isEmpty {
                                             Logger.shared.log("AutomaticCacheEviction", "peer \(peerId): cleaning \(removeIds.count) resources")
                                             
-                                            let _ = mediaBox.removeCachedResourcesWithResult(removeIds).start(next: { actualIds in
+                                            // AyuGram: keep media of kept deleted messages
+                                            let candidateIds = removeIds
+                                            let _ = (ayuProtectedResourceIds(postbox: postbox, ids: candidateIds.compactMap { $0.stringRepresentation.data(using: .utf8) })
+                                            |> mapToSignal { protectedIds -> Signal<[MediaResourceId], NoError> in
+                                                let removeIds = candidateIds.filter { id in
+                                                    guard let data = id.stringRepresentation.data(using: .utf8) else {
+                                                        return true
+                                                    }
+                                                    return !protectedIds.contains(data)
+                                                }
+                                                return mediaBox.removeCachedResourcesWithResult(removeIds)
+                                            }).start(next: { actualIds in
                                                 var actualRawIds: [Data] = []
                                                 for id in actualIds {
                                                     if let data = id.stringRepresentation.data(using: .utf8) {

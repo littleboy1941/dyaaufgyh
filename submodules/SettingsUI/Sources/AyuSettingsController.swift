@@ -113,7 +113,7 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
         case .deletedFooter:
             return ItemListTextItem(presentationData: presentationData, text: .plain("Сообщения, которые удалил собеседник, остаются в чате с пометкой 🗑. Сохраняется только то, что уже было загружено на это устройство."), sectionId: self.section)
         case .scopeFooter:
-            return ItemListTextItem(presentationData: presentationData, text: .plain("Медиа удалённых сообщений не удаляется при очистке кэша."), sectionId: self.section)
+            return ItemListTextItem(presentationData: presentationData, text: .plain("Медиа удалённых сообщений не стирается ни ручной очисткой кэша, ни автоудалением по сроку хранения. Исключение — лимит размера кэша: при нём старые файлы могут удалиться."), sectionId: self.section)
         }
     }
 }

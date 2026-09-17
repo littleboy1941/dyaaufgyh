@@ -400,7 +400,9 @@ func _internal_clearStorage(account: Account, peerId: EnginePeer.Id?, categories
             }
         }
         
-        mediaBox.storageBox.remove(peerId: peerId, contentTypes: mappedContentTypes, includeIds: includeIds, excludeIds: excludeIds, completion: { ids in
+        // AyuGram: keep media of kept deleted messages
+        let _ = ayuAllProtectedResourceIds(postbox: account.postbox).start(next: { protectedIds in
+        mediaBox.storageBox.remove(peerId: peerId, contentTypes: mappedContentTypes, includeIds: includeIds.filter { !protectedIds.contains($0) }, excludeIds: excludeIds + Array(protectedIds), completion: { ids in
             var resourceIds: [MediaResourceId] = []
             for id in ids {
                 if let value = String(data: id, encoding: .utf8) {
@@ -437,6 +439,7 @@ func _internal_clearStorage(account: Account, peerId: EnginePeer.Id?, categories
                 }
             })
         })
+        })
         
         return ActionDisposable {
         }
@@ -468,7 +471,9 @@ func _internal_clearStorage(account: Account, peerIds: Set<EnginePeer.Id>, inclu
             }
         }
         
-        mediaBox.storageBox.remove(peerIds: peerIds, includeIds: includeIds, excludeIds: excludeIds, completion: { ids in
+        // AyuGram: keep media of kept deleted messages
+        let _ = ayuAllProtectedResourceIds(postbox: account.postbox).start(next: { protectedIds in
+        mediaBox.storageBox.remove(peerIds: peerIds, includeIds: includeIds.filter { !protectedIds.contains($0) }, excludeIds: excludeIds + Array(protectedIds), completion: { ids in
             var resourceIds: [MediaResourceId] = []
             
             for id in ids {
@@ -481,6 +486,7 @@ func _internal_clearStorage(account: Account, peerIds: Set<EnginePeer.Id>, inclu
             }, completed: {
                 subscriber.putCompletion()
             })
+        })
         })
         
         return ActionDisposable {
@@ -535,7 +541,8 @@ func _internal_clearStorage(account: Account, messages: [Message]) -> Signal<Nev
     return Signal { subscriber in
         DispatchQueue.global().async {
             var resourceIds = Set<MediaResourceId>()
-            for message in messages {
+            // AyuGram: keep media of kept deleted messages
+            for message in messages where message.ayuDeletedDate == nil {
                 extractMediaResourceIds(message: message, resourceIds: &resourceIds)
             }
             
