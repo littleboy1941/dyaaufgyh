@@ -5198,7 +5198,7 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
             return
         }
 
-        var foundItemNodes: [ChatMessageItemView] = []
+        var foundItemNodes: [(ChatMessageItemView, CGFloat)] = []
         self.forEachItemNode { itemNode in
             guard let itemNode = itemNode as? ChatMessageItemView, let item = itemNode.item, itemNode.bounds.height <= 1800.0 else {
                 return
@@ -5210,7 +5210,7 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
             let isNewlyDeleted = item.content.contains(where: { newlyDeletedStableIds.contains($0.0.stableId) })
             let isFullyDeleted = item.content.allSatisfy({ $0.0.ayuDeletedDate != nil || newlyDeletedStableIds.contains($0.0.stableId) })
             if isNewlyDeleted && isFullyDeleted {
-                foundItemNodes.append(itemNode)
+                foundItemNodes.append((itemNode, ayuDeletedMessageTargetAlpha(item.content.map { $0.0 })))
             }
         }
         if foundItemNodes.isEmpty {
@@ -5238,14 +5238,14 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
         guard let dustEffectLayer = self.dustEffectLayer else {
             return
         }
-        for itemNode in foundItemNodes {
+        for (itemNode, targetAlpha) in foundItemNodes {
             guard let (image, subFrame) = itemNode.makeContentSnapshot() else {
                 continue
             }
             let itemFrame = itemNode.layer.convert(subFrame, to: dustEffectLayer)
             dustEffectLayer.addItem(frame: itemFrame, image: image)
-            // Hidden while the dust flies, then fades in to the deleted-message alpha that setupItem applies.
-            itemNode.layer.animateAlpha(from: 0.0, to: ayuDeletedMessageAlpha, duration: 0.5, delay: 1.0)
+            // Hidden while the dust flies, then fades in to the alpha that setupItem applies.
+            itemNode.layer.animateAlpha(from: 0.0, to: targetAlpha, duration: 0.5, delay: 1.0)
         }
     }
 

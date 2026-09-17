@@ -21,6 +21,27 @@ import LottieMetal
 // AyuGram: opacity of a message deleted by the other side (kept with AyuDeletedMessageAttribute)
 public let ayuDeletedMessageAlpha: CGFloat = 0.65
 
+// AyuGram: final alpha of an item. Photos, videos and stickers of deleted messages stay opaque (only the 🗑 mark),
+// a dimmed picture looks like a filter; text, voice and files are dimmed.
+public func ayuDeletedMessageTargetAlpha(_ messages: [EngineRawMessage]) -> CGFloat {
+    let isDeleted = !messages.isEmpty && messages.allSatisfy({ $0.attributes.contains(where: { $0 is AyuDeletedMessageAttribute }) })
+    if !isDeleted {
+        return 1.0
+    }
+    let hasVisualMedia = messages.contains(where: { message in
+        return message.media.contains(where: { media in
+            if media is TelegramMediaImage {
+                return true
+            }
+            if let file = media as? TelegramMediaFile {
+                return file.isVideo || file.isSticker || file.isAnimated || file.isAnimatedSticker || file.isVideoSticker
+            }
+            return false
+        })
+    })
+    return hasVisualMedia ? 1.0 : ayuDeletedMessageAlpha
+}
+
 public func chatMessageItemLayoutConstants(_ constants: (ChatMessageItemLayoutConstants, ChatMessageItemLayoutConstants), params: ListViewItemLayoutParams, presentationData: ChatPresentationData) -> ChatMessageItemLayoutConstants {
     var result: ChatMessageItemLayoutConstants
     if params.width > 680.0 {
@@ -693,8 +714,7 @@ open class ChatMessageItemView: ListViewItemNode, ChatMessageItemNodeProtocol {
     open func setupItem(_ item: ChatMessageItem, synchronousLoad: Bool) {
         self.item = item
         
-        let isAyuDeleted = item.content.allSatisfy({ $0.0.attributes.contains(where: { $0 is AyuDeletedMessageAttribute }) })
-        self.alpha = isAyuDeleted ? ayuDeletedMessageAlpha : 1.0
+        self.alpha = ayuDeletedMessageTargetAlpha(item.content.map { $0.0 })
     }
     
     open func updateAccessibilityData(_ accessibilityData: ChatMessageAccessibilityData) {

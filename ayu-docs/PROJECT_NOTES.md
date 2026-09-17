@@ -109,7 +109,7 @@
 - Не сохраняются: сервисные сообщения, `TelegramMediaExpiredContent`, сообщения с `AutoremoveTimeoutMessageAttribute`/`AutoclearTimeoutMessageAttribute` (TTL, одноразовые), 777000, секретные чаты.
 - Своё удаление с этого устройства стирает сразу локально, поэтому пришедший потом update сообщение уже не находит.
 - Настройки: `TelegramCore/Sources/Settings/AyuSettings.swift` — per-account Postbox preference `PreferencesKeys.ayuSettings` (значение 500, далеко от upstream). Поля декодируются с дефолтами, новые поля добавлять так же. Экран `SettingsUI/Sources/AyuSettingsController.swift`, пункт «AyuGram» в настройках (`PeerInfoSettingsSection.ayuGram`).
-- UI: `ChatMessageItemView.setupItem` делает удалённые полупрозрачными (`ayuDeletedMessageAlpha` = 0.65). `ChatHistoryListNode.ayuAnimateNewlyDeletedMessages`: если у видимого сообщения появился атрибут — DustEffect со снимка и проявление через 1 с.
+- UI: `ChatMessageItemView.setupItem` делает удалённые полупрозрачными (`ayuDeletedMessageTargetAlpha`, 0.65); фото, видео и стикеры остаются непрозрачными — только 🗑 (просьба пользователя: полупрозрачная картинка выглядит как фильтр; правка ещё не собрана). `ChatHistoryListNode.ayuAnimateNewlyDeletedMessages`: если у видимого сообщения появился атрибут — DustEffect со снимка и проявление через 1 с.
 - Меню: для сохранённого удалённого только «удалить у себя»; `deleteMessagesInteractively` не отправляет для них запрос на сервер.
 - Кэш (`Utils/AyuCacheProtection.swift`): автоочистка по срокам (`AutomaticCacheEviction`, по умолчанию группы 31 день, каналы 7) и ручная очистка (`_internal_clearStorage`) пропускают ресурсы, на которые StorageBox ссылается из удалённых сообщений.
 
