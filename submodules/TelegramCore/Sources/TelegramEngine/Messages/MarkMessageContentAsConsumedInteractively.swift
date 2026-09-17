@@ -13,7 +13,28 @@ func _internal_markMessageContentAsConsumedInteractively(postbox: Postbox, messa
     }
     |> mapToSignal { preservedMessage -> Signal<Void, NoError> in
         if let preservedMessage {
-            return ayuConsumeSelfDestructingMediaRemotely(postbox: postbox, message: preservedMessage)
+            // A mention inside the message is still consumed as usual
+            let consumeMention: Signal<Void, NoError> = postbox.transaction { transaction -> Void in
+                guard let message = transaction.getMessage(messageId) else {
+                    return
+                }
+                var attributes = message.attributes
+                var updated = false
+                for i in 0 ..< attributes.count {
+                    if let attribute = attributes[i] as? ConsumablePersonalMentionMessageAttribute, !attribute.consumed, !attribute.pending {
+                        transaction.setPendingMessageAction(type: .consumeUnseenPersonalMessage, id: messageId, action: ConsumePersonalMessageAction())
+                        attributes[i] = ConsumablePersonalMentionMessageAttribute(consumed: attribute.consumed, pending: true)
+                        updated = true
+                    }
+                }
+                if updated {
+                    transaction.updateMessage(messageId, update: { currentMessage in
+                        return .update(StoreMessage(id: currentMessage.id, customStableId: nil, globallyUniqueId: currentMessage.globallyUniqueId, groupingKey: currentMessage.groupingKey, threadId: currentMessage.threadId, timestamp: currentMessage.timestamp, flags: StoreMessageFlags(currentMessage.flags), tags: currentMessage.tags, globalTags: currentMessage.globalTags, localTags: currentMessage.localTags, forwardInfo: currentMessage.forwardInfo.flatMap(StoreMessageForwardInfo.init), authorId: currentMessage.author?.id, text: currentMessage.text, attributes: attributes, media: currentMessage.media))
+                    })
+                }
+            }
+            return consumeMention
+            |> then(ayuConsumeSelfDestructingMediaRemotely(postbox: postbox, message: preservedMessage))
         }
         return markMessageContentAsConsumedLocallyInteractively(postbox: postbox, messageId: messageId)
     }
@@ -191,10 +212,8 @@ func _internal_markReactionsOrPollVotesAsSeenInteractively(postbox: Postbox, mes
 
 func markMessageContentAsConsumedRemotely(transaction: Transaction, messageId: MessageId, consumeDate: Int32?) {
     if let message = transaction.getMessage(messageId) {
-        // AyuGram: our own "opened" coming back from the server must not expire kept media
-        if ayuShouldPreserveSelfDestructingMedia(message: message, settings: ayuSettings(transaction: transaction)) {
-            return
-        }
+        // AyuGram: our own "opened" coming back from the server must not expire kept media (mentions are still consumed)
+        let ayuPreserve = ayuShouldPreserveSelfDestructingMedia(message: message, settings: ayuSettings(transaction: transaction))
         var updateMessage = false
         var updatedAttributes = message.attributes
         var updatedMedia = message.media
@@ -202,7 +221,7 @@ func markMessageContentAsConsumedRemotely(transaction: Transaction, messageId: M
         
         for i in 0 ..< updatedAttributes.count {
             if let attribute = updatedAttributes[i] as? ConsumableContentMessageAttribute {
-                if !attribute.consumed {
+                if !attribute.consumed && !ayuPreserve {
                     updatedAttributes[i] = ConsumableContentMessageAttribute(consumed: true)
                     updateMessage = true
                 }
@@ -218,8 +237,8 @@ func markMessageContentAsConsumedRemotely(transaction: Transaction, messageId: M
         
         let timestamp = Int32(CFAbsoluteTimeGetCurrent() + NSTimeIntervalSince1970)
         let countdownBeginTime = consumeDate ?? timestamp
-        
-        for i in 0 ..< updatedAttributes.count {
+
+        for i in 0 ..< updatedAttributes.count where !ayuPreserve {
             if let attribute = updatedAttributes[i] as? AutoremoveTimeoutMessageAttribute {
                 if (attribute.countdownBeginTime == nil || attribute.countdownBeginTime == 0) && message.containsSecretMedia {
                     updatedAttributes[i] = AutoremoveTimeoutMessageAttribute(timeout: attribute.timeout, countdownBeginTime: countdownBeginTime)

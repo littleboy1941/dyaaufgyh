@@ -51,17 +51,19 @@ func ayuConsumeSelfDestructingMediaRemotely(postbox: Postbox, message: Message) 
 // A server copy of the message (difference, holes, validation, edit) comes with the media already expired;
 // keep the local media and its unopened state.
 func ayuPreservingSelfDestructingMedia(transaction: Transaction, incoming: StoreMessage) -> StoreMessage {
-    guard case let .Id(id) = incoming.id else {
+    guard case let .Id(id) = incoming.id, id.namespace == Namespaces.Message.Cloud else {
         return incoming
     }
     let incomingIsExpired = incoming.media.contains(where: { $0 is TelegramMediaExpiredContent })
-    let incomingLacksMedia = !incoming.media.contains(where: { $0 is TelegramMediaImage || $0 is TelegramMediaFile })
-    guard incomingIsExpired || incomingLacksMedia else {
+    let incomingHasTimeout = incoming.attributes.contains(where: { $0 is AutoclearTimeoutMessageAttribute || $0 is AutoremoveTimeoutMessageAttribute })
+    // Only a message that is or was self-destructing needs a lookup of the local copy
+    guard incomingIsExpired || incomingHasTimeout else {
         return incoming
     }
     guard let current = transaction.getMessage(id), ayuShouldPreserveSelfDestructingMedia(message: current, settings: ayuSettings(transaction: transaction)) else {
         return incoming
     }
+    let incomingLacksMedia = !incoming.media.contains(where: { $0 is TelegramMediaImage || $0 is TelegramMediaFile })
 
     func isPreservedAttribute(_ attribute: MessageAttribute) -> Bool {
         return attribute is ConsumableContentMessageAttribute || attribute is AutoclearTimeoutMessageAttribute || attribute is AutoremoveTimeoutMessageAttribute || attribute is AyuDeletedMessageAttribute
@@ -69,7 +71,12 @@ func ayuPreservingSelfDestructingMedia(transaction: Transaction, incoming: Store
     var attributes = incoming.attributes.filter { !isPreservedAttribute($0) }
     attributes.append(contentsOf: current.attributes.filter { isPreservedAttribute($0) })
 
-    return incoming.withUpdatedMedia(current.media).withUpdatedAttributes(attributes)
+    // The unopened state is always local; the media is replaced only when the server copy lost it
+    if incomingIsExpired || incomingLacksMedia {
+        return incoming.withUpdatedMedia(current.media).withUpdatedAttributes(attributes)
+    } else {
+        return incoming.withUpdatedAttributes(attributes)
+    }
 }
 
 func ayuPreservingSelfDestructingMedia(transaction: Transaction, messages: [StoreMessage]) -> [StoreMessage] {

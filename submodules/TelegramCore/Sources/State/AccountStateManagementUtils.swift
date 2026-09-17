@@ -2505,7 +2505,7 @@ func resolveForumThreads(accountPeerId: PeerId, postbox: Postbox, source: FetchM
                         let parsedPeers = AccumulatedPeers(transaction: transaction, chats: chats, users: users)
                         updatePeers(transaction: transaction, accountPeerId: accountPeerId, peers: parsedPeers)
                         
-                        let _ = transaction.addMessages(storeMessages, location: .Random)
+                        let _ = transaction.addMessages(ayuPreservingSelfDestructingMedia(transaction: transaction, messages: storeMessages), location: .Random)
                     }
                 }
             }

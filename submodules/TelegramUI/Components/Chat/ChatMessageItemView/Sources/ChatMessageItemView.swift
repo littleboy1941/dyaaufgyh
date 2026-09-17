@@ -28,6 +28,11 @@ public func ayuDeletedMessageTargetAlpha(_ messages: [EngineRawMessage]) -> CGFl
     if !isDeleted {
         return 1.0
     }
+    return ayuDeletedContentAlpha(messages)
+}
+
+// Alpha of messages already known to be deleted
+public func ayuDeletedContentAlpha(_ messages: [EngineRawMessage]) -> CGFloat {
     let hasVisualMedia = messages.contains(where: { message in
         return message.media.contains(where: { media in
             if media is TelegramMediaImage {

@@ -5210,7 +5210,7 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
             let isNewlyDeleted = item.content.contains(where: { newlyDeletedStableIds.contains($0.0.stableId) })
             let isFullyDeleted = item.content.allSatisfy({ $0.0.ayuDeletedDate != nil || newlyDeletedStableIds.contains($0.0.stableId) })
             if isNewlyDeleted && isFullyDeleted {
-                foundItemNodes.append((itemNode, ayuDeletedMessageTargetAlpha(item.content.map { $0.0 })))
+                foundItemNodes.append((itemNode, ayuDeletedContentAlpha(item.content.map { $0.0 })))
             }
         }
         if foundItemNodes.isEmpty {

@@ -1036,7 +1036,7 @@ func fetchMessageHistoryHole(accountPeerId: PeerId, source: FetchMessageHistoryH
                         let ayuStoreMessages = ayuPreservingSelfDestructingMedia(transaction: transaction, messages: storeMessages)
                         ayuRecordEdits(transaction: transaction, messages: ayuStoreMessages)
                         let _ = transaction.addMessages(ayuStoreMessages, location: .Random)
-                        let _ = transaction.addMessages(additionalMessages, location: .Random)
+                        let _ = transaction.addMessages(ayuPreservingSelfDestructingMedia(transaction: transaction, messages: additionalMessages), location: .Random)
                         var filledRange: ClosedRange<MessageId.Id>
                         var strictFilledIndices: IndexSet
                         let ids = storeMessages.compactMap { message -> MessageId.Id? in
@@ -1211,7 +1211,7 @@ func fetchChatListHole(postbox: Postbox, network: Network, accountPeerId: PeerId
             let ayuStoreMessages = ayuPreservingSelfDestructingMedia(transaction: transaction, messages: fetchedChats.storeMessages)
             ayuRecordEdits(transaction: transaction, messages: ayuStoreMessages)
             let _ = transaction.addMessages(ayuStoreMessages, location: .UpperHistoryBlock)
-            let _ = transaction.addMessages(additionalMessages, location: .Random)
+            let _ = transaction.addMessages(ayuPreservingSelfDestructingMedia(transaction: transaction, messages: additionalMessages), location: .Random)
             transaction.resetIncomingReadStates(fetchedChats.readStates)
             
             for (peerId, autoremoveValue) in fetchedChats.ttlPeriods {
