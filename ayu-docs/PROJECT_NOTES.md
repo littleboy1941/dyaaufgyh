@@ -98,7 +98,7 @@
 - экран настроек;
 - история правок.
 
-### 🔨 Удалённые сообщения v2 (2026-09-17, написано, НЕ собрано и НЕ проверено)
+### ✅ Удалённые сообщения v2 (2026-09-17, собрано run 35221748150, базово работает на телефоне)
 
 Одна пачка коммитов после `6525467d`, собирается одной сборкой.
 
@@ -109,7 +109,7 @@
 - Не сохраняются: сервисные сообщения, `TelegramMediaExpiredContent`, сообщения с `AutoremoveTimeoutMessageAttribute`/`AutoclearTimeoutMessageAttribute` (TTL, одноразовые), 777000, секретные чаты.
 - Своё удаление с этого устройства стирает сразу локально, поэтому пришедший потом update сообщение уже не находит.
 - Настройки: `TelegramCore/Sources/Settings/AyuSettings.swift` — per-account Postbox preference `PreferencesKeys.ayuSettings` (значение 500, далеко от upstream). Поля декодируются с дефолтами, новые поля добавлять так же. Экран `SettingsUI/Sources/AyuSettingsController.swift`, пункт «AyuGram» в настройках (`PeerInfoSettingsSection.ayuGram`).
-- UI: `ChatMessageItemView.setupItem` делает удалённые полупрозрачными (`ayuDeletedMessageTargetAlpha`, 0.65); фото, видео и стикеры остаются непрозрачными — только 🗑 (просьба пользователя: полупрозрачная картинка выглядит как фильтр; правка ещё не собрана). `ChatHistoryListNode.ayuAnimateNewlyDeletedMessages`: если у видимого сообщения появился атрибут — DustEffect со снимка и проявление через 1 с.
+- UI: `ChatMessageItemView.setupItem` делает удалённые полупрозрачными (`ayuDeletedMessageTargetAlpha`, 0.65); фото, видео и стикеры остаются непрозрачными — только 🗑 (просьба пользователя: полупрозрачная картинка выглядит как фильтр). В анимации пыли конечная прозрачность — `ayuDeletedContentAlpha` (атрибута на старом item ещё нет). `ChatHistoryListNode.ayuAnimateNewlyDeletedMessages`: если у видимого сообщения появился атрибут — DustEffect со снимка и проявление через 1 с.
 - Меню: для сохранённого удалённого только «удалить у себя»; `deleteMessagesInteractively` не отправляет для них запрос на сервер.
 - Кэш (`Utils/AyuCacheProtection.swift`): автоочистка по срокам (`AutomaticCacheEviction`, по умолчанию группы 31 день, каналы 7) и ручная очистка (`_internal_clearStorage`) пропускают ресурсы, на которые StorageBox ссылается из удалённых сообщений.
 
@@ -128,7 +128,7 @@
 4. Удалить у себя сохранённое сообщение → исчезает, ошибок нет.
 5. Хранилище ▸ очистить кэш → фото удалённого сообщения остаётся.
 
-### 🔨 История правок v1 (2026-09-17, написано, НЕ проверено на телефоне)
+### ✅ История правок v1 (2026-09-17, собрано run 35221748150, базово работает на телефоне)
 
 - `TelegramCore/Sources/State/AyuEditHistory.swift`: перед применением правки старый текст входящего сообщения пишется в item cache коллекцию `Namespaces.CachedItemCollection.ayuEditHistory` (100), ключ — id сообщения, максимум 50 версий. Не в атрибутах: серверная копия сообщения их затирает.
 - Точки записи: `.EditMessage` в `replayFinalState`, а также полные серверные копии (`ayuRecordEdits`): `AddMessages` в replay (difference), дыры истории и загрузка чатов в `Holes.swift`, сверка в `HistoryViewStateValidation`. Не покрыты: поиск, `AccountViewTracker`, `ReplyThreadHistory`, `SparseMessageList` и др. полные перезапросы.
@@ -136,6 +136,56 @@
 - UI: меню сообщения ▸ «История правок» (для входящих с `EditedMessageAttribute`, не для альбомов) → `SettingsUI/Sources/AyuEditHistoryController.swift`. Открытый экран не обновляется при новой правке (переоткрыть).
 - Проверить: собеседник правит сообщение 2–3 раза → в меню «История правок» все версии с датами; свои правки не пишутся; выключенная настройка — не пишется.
 - Записи не удаляются при удалении сообщения (мелкий мусор в базе).
+
+### ✅ Одноразовые медиа v1 (2026-09-17, собрано run 35221748150, базово работает на телефоне)
+
+Облачные чаты (не секретные): фото/видео с таймером, «просмотр один раз», view-once голосовые и кружки.
+
+Поведение:
+- при открытии собеседнику уходит обычное «просмотрено» (`messages.readMessageContents` / `channels.readMessageContents`);
+- у нас медиа не помечается просмотренным: нет `countdownBeginTime`, нет замены на `TelegramMediaExpiredContent`, выглядит неоткрытым (размытие, значок) и открывается сколько угодно раз, переживает перезапуск;
+- удалённая собеседником одноразка сохраняется как удалённая (🗑);
+- файл защищён от очистки кэша;
+- настройка `AyuSettings.keepSelfDestructingMedia` (по умолчанию вкл), экран AyuGram ▸ «Одноразовые медиа».
+
+Почему это вообще возможно: сервер отдаёт файл телефону целиком, «один раз» — это только локальная логика клиента (атрибуты `AutoclearTimeoutMessageAttribute`/`AutoremoveTimeoutMessageAttribute` + `ManagedAutoremoveMessageOperations`). Серверные данные, которые не приходят на телефон (например точный last seen при скрытом статусе), так получить нельзя.
+
+Код (`TelegramCore/Sources/State/AyuSelfDestructingMedia.swift`):
+- `ayuShouldPreserveSelfDestructingMedia(message:settings:)` — входящее, Cloud, не секретный чат, `containsSecretMedia`, ещё не expired, настройка включена. Единый предикат для всех мест ниже.
+- `ayuConsumeSelfDestructingMediaRemotely` — ждёт `mediaBox.resourceData(...).complete` главного ресурса (largest image representation / file.resource), затем `addSynchronizeConsumeMessageContentsOperation`. Сам не качает: загрузку делает просмотрщик. Если файл не докачался — отметка не уйдёт, пока не откроют снова.
+- `ayuPreservingSelfDestructingMedia(transaction:incoming:)` — серверная копия сообщения: для сохраняемого всегда возвращает локальные `ConsumableContent`/timeout/`AyuDeleted` атрибуты; медиа подменяет локальным, только если серверная копия expired или без медиа. `getMessage` делается только если у входящего есть timeout-атрибут или expired.
+
+Точки врезки:
+- `MarkMessageContentAsConsumedInteractively.swift`: для сохраняемых — только упоминание (`ConsumablePersonalMention` → pending) + удалённая отметка; остальное — прежний путь `markMessageContentAsConsumedLocallyInteractively`. В `markMessageContentAsConsumedRemotely` (наш же read-update с сервера) для сохраняемых не трогаются consumed и таймеры, упоминания обрабатываются.
+- `ManagedAutoremoveMessageOperations.swift`: сообщения с `AyuDeletedMessageAttribute` и сохраняемые одноразки не удаляются/не expire; обязательно `clearTimestampBasedAttribute`, иначе запись остаётся головой очереди.
+- Серверные копии через `ayuPreservingSelfDestructingMedia`: replay `AddMessages` и `.EditMessage` (AccountStateManagementUtils), `resolveAssociatedMessages` (там же), `Holes.swift` (дыры, загрузка чатов, additionalMessages), `HistoryViewStateValidation` (обе ветки, `ayuMessage`), `ResetState.swift`, `ManagedSynchronizePinnedChatsOperations.swift`.
+- `AyuDeletedMessages.swift`: timeout-атрибуты больше не мешают сохранению удалённого, если одноразка сохраняется.
+- `AyuCacheProtection.swift`: защищены ресурсы и удалённых, и сохраняемых одноразок.
+- UI не менялся: при нетронутых атрибутах штатный UI сам показывает «неоткрыто», `SecretMediaPreviewController` без `countdownBeginTime` не запускает таймер, view-once голосовые/кружки открываются через `ChatControllerOpenViewOnceMediaMessage`.
+
+Известные ограничения / не проверено:
+- Не покрыты редкие пути перезаписи сообщений: поиск (`SearchMessages`), `AccountViewTracker`, `ReplyThreadHistory`, `SparseMessageList`, `LoadMessagesIfNecessary`.
+- Можно ли скачать файл после серверной отметки — не проверено; поэтому отметка только после полной загрузки.
+- Каждое открытие ставит новую read-операцию (без дедупликации) — лишние запросы, не цикл.
+- Сохранение в галерею, пересылка, скриншоты — по-прежнему запрещены штатно (не трогали).
+- Медиа, открытое до этой сборки, уже стёрто.
+- Секретные чаты не поддержаны.
+
+Чек-лист теста:
+1. Фото «один раз»: открыть, закрыть → снова размыто, открывается повторно.
+2. У собеседника — «просмотрено».
+3. Голосовое и кружок «один раз», фото/видео с таймером.
+4. Перезапуск приложения — одноразки на месте.
+5. Собеседник удалил одноразку — осталась с 🗑.
+6. Выключить настройку — одноразки ведут себя штатно.
+7. Настройки ▸ Данные и память ▸ Использование памяти ▸ очистить кэш — одноразки открываются.
+
+### Сборки 2026-09-17
+
+- run 35194019169 — удалённые v2 (первая сборка с новым public API, ~1 ч 20 мин Build).
+- run 35201730979 — фиксы альбомов/общих ресурсов (~10,5 мин).
+- run 35203975869 / 35204846653 — история правок и фикс полных копий.
+- run 35221748150 — одноразовые медиа + непрозрачные удалённые фото + фиксы ревью. Упала только загрузка артефакта (таймаут GitHub), `gh run rerun --failed` прошёл за ~10 мин. **Актуальная сборка.**
 
 ### План
 
