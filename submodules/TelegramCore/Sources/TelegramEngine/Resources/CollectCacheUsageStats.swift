@@ -553,9 +553,19 @@ func _internal_clearStorage(account: Account, messages: [Message]) -> Signal<Nev
                 }
             }
             
-            mediaBox.storageBox.remove(ids: removeIds)
-            let _ = mediaBox.removeCachedResources(Array(resourceIds)).start(completed: {
-                subscriber.putCompletion()
+            // AyuGram: a resource can be shared with a kept deleted message
+            let _ = ayuProtectedResourceIds(postbox: account.postbox, ids: removeIds).start(next: { protectedIds in
+                let removeIds = removeIds.filter { !protectedIds.contains($0) }
+                let removeResourceIds = resourceIds.filter { resourceId in
+                    guard let id = resourceId.stringRepresentation.data(using: .utf8) else {
+                        return true
+                    }
+                    return !protectedIds.contains(id)
+                }
+                mediaBox.storageBox.remove(ids: removeIds)
+                let _ = mediaBox.removeCachedResources(Array(removeResourceIds)).start(completed: {
+                    subscriber.putCompletion()
+                })
             })
         }
         

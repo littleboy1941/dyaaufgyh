@@ -5206,7 +5206,10 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
             if let bubbleItemNode = itemNode as? ChatMessageBubbleItemNode, bubbleItemNode.isServiceLikeMessage() {
                 return
             }
-            if item.content.contains(where: { newlyDeletedStableIds.contains($0.0.stableId) }) {
+            // A partially deleted album keeps full opacity, so it isn't dusted as a whole
+            let isNewlyDeleted = item.content.contains(where: { newlyDeletedStableIds.contains($0.0.stableId) })
+            let isFullyDeleted = item.content.allSatisfy({ $0.0.ayuDeletedDate != nil || newlyDeletedStableIds.contains($0.0.stableId) })
+            if isNewlyDeleted && isFullyDeleted {
                 foundItemNodes.append(itemNode)
             }
         }
