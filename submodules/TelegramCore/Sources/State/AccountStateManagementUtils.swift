@@ -4441,28 +4441,11 @@ func replayFinalState(
                 }
             case let .DeleteMessagesWithGlobalIds(ids):
                 var savedGlobalIds = Set<Int32>()
-                let deletionTimestamp = Int32(Date().timeIntervalSince1970)
+                let ayuSettingsValue = ayuSettings(transaction: transaction)
+                let deletionTimestamp = ayuCurrentTimestamp()
                 for messageId in transaction.messageIdsForGlobalIds(ids) {
-                    guard messageId.namespace == Namespaces.Message.Cloud,
-                          messageId.peerId.namespace == Namespaces.Peer.CloudUser,
-                          messageId.peerId.id._internalGetInt64Value() != 777000,
-                          let message = transaction.getMessage(messageId),
-                          !message.text.isEmpty,
-                          let user = transaction.getPeer(messageId.peerId) as? TelegramUser,
-                          user.botInfo == nil else {
-                        continue
-                    }
-
-                    savedGlobalIds.insert(messageId.id)
-                    if message.ayuDeletedDate == nil {
-                        transaction.updateMessage(messageId, update: { currentMessage in
-                            guard currentMessage.ayuDeletedDate == nil else {
-                                return .skip
-                            }
-                            var attributes = currentMessage.attributes
-                            attributes.append(AyuDeletedMessageAttribute(date: deletionTimestamp))
-                            return .update(StoreMessage(id: currentMessage.id, customStableId: nil, globallyUniqueId: currentMessage.globallyUniqueId, groupingKey: currentMessage.groupingKey, threadId: currentMessage.threadId, timestamp: currentMessage.timestamp, flags: StoreMessageFlags(currentMessage.flags), tags: currentMessage.tags, globalTags: currentMessage.globalTags, localTags: currentMessage.localTags, forwardInfo: currentMessage.forwardInfo.flatMap(StoreMessageForwardInfo.init), authorId: currentMessage.author?.id, text: currentMessage.text, attributes: attributes, media: currentMessage.media))
-                        })
+                    if ayuMarkMessageDeleted(transaction: transaction, id: messageId, settings: ayuSettingsValue, timestamp: deletionTimestamp) {
+                        savedGlobalIds.insert(messageId.id)
                     }
                 }
 
@@ -4476,10 +4459,13 @@ func replayFinalState(
                 }
                 deletedMessageIds.append(contentsOf: idsToDelete.map { .global($0) })
             case let .DeleteMessages(ids):
-                _internal_deleteMessages(transaction: transaction, mediaBox: mediaBox, ids: ids, manualAddMessageThreadStatsDifference: { id, add, remove in
+                let ayuSettingsValue = ayuSettings(transaction: transaction)
+                let deletionTimestamp = ayuCurrentTimestamp()
+                let idsToDelete = ids.filter { !ayuMarkMessageDeleted(transaction: transaction, id: $0, settings: ayuSettingsValue, timestamp: deletionTimestamp) }
+                _internal_deleteMessages(transaction: transaction, mediaBox: mediaBox, ids: idsToDelete, manualAddMessageThreadStatsDifference: { id, add, remove in
                     addMessageThreadStatsDifference(threadKey: id, remove: remove, addedMessagePeer: nil, addedMessageId: nil, isOutgoing: false)
                 })
-                deletedMessageIds.append(contentsOf: ids.map { .messageId($0) })
+                deletedMessageIds.append(contentsOf: idsToDelete.map { .messageId($0) })
             case let .UpdateMinAvailableMessage(id):
                 if let message = transaction.getMessage(id) {
                     updatePeerChatInclusionWithMinTimestamp(transaction: transaction, id: id.peerId, minTimestamp: message.timestamp, forceRootGroupIfNotExists: false)
