@@ -884,6 +884,7 @@ private func validateBatch(postbox: Postbox, network: Network, transaction: Tran
                                         }
                                     }
                                     
+                                    ayuRecordEdits(transaction: transaction, messages: [message])
                                     transaction.updateMessage(id, update: { currentMessage in
                                         if updatedTimestamp != timestamp {
                                             var updatedLocalTags = message.localTags
@@ -1131,6 +1132,7 @@ private func validateReplyThreadBatch(postbox: Postbox, network: Network, transa
                                     }
                                 }
                                 
+                                ayuRecordEdits(transaction: transaction, messages: [message])
                                 transaction.updateMessage(id, update: { currentMessage in
                                     if updatedTimestamp != timestamp {
                                         var updatedLocalTags = message.localTags

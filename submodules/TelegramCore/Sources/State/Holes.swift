@@ -1033,6 +1033,7 @@ func fetchMessageHistoryHole(accountPeerId: PeerId, source: FetchMessageHistoryH
                     }
                     
                     return withResolvedAssociatedMessages(postbox: postbox, source: source, accountPeerId: accountPeerId, parsedPeers: parsedPeers, storeMessages: storeMessages, resolveThreads: true, { transaction, additionalParsedPeers, additionalMessages -> FetchMessageHistoryHoleResult? in
+                        ayuRecordEdits(transaction: transaction, messages: storeMessages)
                         let _ = transaction.addMessages(storeMessages, location: .Random)
                         let _ = transaction.addMessages(additionalMessages, location: .Random)
                         var filledRange: ClosedRange<MessageId.Id>
@@ -1206,6 +1207,7 @@ func fetchChatListHole(postbox: Postbox, network: Network, accountPeerId: PeerId
             }
             
             transaction.updateCurrentPeerNotificationSettings(fetchedChats.notificationSettings)
+            ayuRecordEdits(transaction: transaction, messages: fetchedChats.storeMessages)
             let _ = transaction.addMessages(fetchedChats.storeMessages, location: .UpperHistoryBlock)
             let _ = transaction.addMessages(additionalMessages, location: .Random)
             transaction.resetIncomingReadStates(fetchedChats.readStates)

@@ -4257,6 +4257,7 @@ func replayFinalState(
                     }
                 }
             
+                ayuRecordEdits(transaction: transaction, messages: messages)
                 let _ = transaction.addMessages(messages, location: location)
                 if case .UpperHistoryBlock = location {
                     for message in messages {

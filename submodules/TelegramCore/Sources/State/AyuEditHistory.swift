@@ -17,6 +17,8 @@ public struct AyuEditHistoryEntry: Codable, Equatable {
     }
 }
 
+private let ayuEditHistoryLimit = 50
+
 private struct AyuEditHistory: Codable {
     var entries: [AyuEditHistoryEntry]
 }
@@ -55,8 +57,21 @@ func ayuRecordEdit(transaction: Transaction, id: MessageId, updatedText: String)
         return
     }
     entries.append(AyuEditHistoryEntry(text: previousMessage.text, date: previousDate))
+    if entries.count > ayuEditHistoryLimit {
+        entries.removeFirst(entries.count - ayuEditHistoryLimit)
+    }
     if let entry = CodableEntry(AyuEditHistory(entries: entries)) {
         transaction.putItemCacheEntry(id: ayuEditHistoryEntryId(id), entry: entry)
+    }
+}
+
+// Server copies of messages that replace local ones (difference, holes, validation) also carry edits
+func ayuRecordEdits(transaction: Transaction, messages: [StoreMessage]) {
+    for message in messages {
+        guard case let .Id(id) = message.id, message.attributes.contains(where: { $0 is EditedMessageAttribute }) else {
+            continue
+        }
+        ayuRecordEdit(transaction: transaction, id: id, updatedText: message.text)
     }
 }
 
