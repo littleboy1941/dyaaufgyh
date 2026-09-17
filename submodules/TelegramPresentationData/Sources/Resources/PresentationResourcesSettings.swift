@@ -128,6 +128,7 @@ public struct PresentationResourcesSettings {
     public static let dataAndStorage = renderSettingsIcon(name: "Item List/Icons/Data", backgroundColors: [colorGreen])
     public static let appearance = renderSettingsIcon(name: "Item List/Icons/Appearance", backgroundColors: [colorLightBlue])
     public static let language = renderSettingsIcon(name: "Item List/Icons/Language", backgroundColors: [colorPurple])
+    public static let ayuGram = renderSettingsIcon(name: "Item List/Icons/Effect", backgroundColors: [UIColor(rgb: 0xA95CE3), UIColor(rgb: 0xF16B80)])
     public static let powerSaving = renderSettingsIcon(name: "Item List/Icons/PowerSaving", backgroundColors: [colorOrange])
     public static let business = renderSettingsIcon(name: "Item List/Icons/Business", backgroundColors: [UIColor(rgb: 0xA95CE3), UIColor(rgb: 0xF16B80)])
     public static let myProfile = renderSettingsIcon(name: "Item List/Icons/Profile", backgroundColors: [colorRed])
