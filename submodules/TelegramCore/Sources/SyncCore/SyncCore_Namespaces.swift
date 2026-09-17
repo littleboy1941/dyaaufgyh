@@ -156,6 +156,8 @@ public struct Namespaces {
         public static let cachedCloudAITextStyles: Int8 = 53
         public static let cachedCommunityPeerLinkRequests: Int8 = 54
         public static let richTextComposerDrafts: Int8 = 55
+        // AyuGram: far from upstream values
+        public static let ayuEditHistory: Int8 = 100
     }
     
     public struct UnorderedItemList {

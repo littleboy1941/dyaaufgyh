@@ -15,6 +15,9 @@ public struct AyuSettings: Equatable, Codable {
     public var saveDeletedFromBots: Bool = false
     public var saveDeletedMedia: Bool = true
 
+    // Keep previous versions of edited incoming messages
+    public var saveEditHistory: Bool = true
+
     public init() {
     }
 
@@ -25,6 +28,7 @@ public struct AyuSettings: Equatable, Codable {
         case saveDeletedInChannels
         case saveDeletedFromBots
         case saveDeletedMedia
+        case saveEditHistory
     }
 
     // Every key is optional so that settings saved by an older build decode with defaults
@@ -37,6 +41,7 @@ public struct AyuSettings: Equatable, Codable {
         self.saveDeletedInChannels = try container.decodeIfPresent(Bool.self, forKey: .saveDeletedInChannels) ?? defaults.saveDeletedInChannels
         self.saveDeletedFromBots = try container.decodeIfPresent(Bool.self, forKey: .saveDeletedFromBots) ?? defaults.saveDeletedFromBots
         self.saveDeletedMedia = try container.decodeIfPresent(Bool.self, forKey: .saveDeletedMedia) ?? defaults.saveDeletedMedia
+        self.saveEditHistory = try container.decodeIfPresent(Bool.self, forKey: .saveEditHistory) ?? defaults.saveEditHistory
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -47,6 +52,7 @@ public struct AyuSettings: Equatable, Codable {
         try container.encode(self.saveDeletedInChannels, forKey: .saveDeletedInChannels)
         try container.encode(self.saveDeletedFromBots, forKey: .saveDeletedFromBots)
         try container.encode(self.saveDeletedMedia, forKey: .saveDeletedMedia)
+        try container.encode(self.saveEditHistory, forKey: .saveEditHistory)
     }
 }
 

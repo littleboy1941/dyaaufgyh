@@ -25,6 +25,7 @@ private enum AyuSettingsToggle: Int32 {
     case saveDeletedInChannels
     case saveDeletedFromBots
     case saveDeletedMedia
+    case saveEditHistory
 
     var keyPath: WritableKeyPath<AyuSettings, Bool> {
         switch self {
@@ -40,6 +41,8 @@ private enum AyuSettingsToggle: Int32 {
             return \.saveDeletedFromBots
         case .saveDeletedMedia:
             return \.saveDeletedMedia
+        case .saveEditHistory:
+            return \.saveEditHistory
         }
     }
 
@@ -57,6 +60,8 @@ private enum AyuSettingsToggle: Int32 {
             return "В чатах с ботами"
         case .saveDeletedMedia:
             return "Сохранять медиа"
+        case .saveEditHistory:
+            return "Сохранять историю правок"
         }
     }
 }
@@ -64,6 +69,7 @@ private enum AyuSettingsToggle: Int32 {
 private enum AyuSettingsSection: Int32 {
     case deleted
     case deletedScope
+    case edits
 }
 
 private enum AyuSettingsEntry: ItemListNodeEntry {
@@ -71,15 +77,26 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
     case toggle(AyuSettingsToggle, Bool)
     case deletedFooter
     case scopeFooter
+    case editsHeader
+    case editsFooter
 
     var section: ItemListSectionId {
         switch self {
         case .deletedHeader, .deletedFooter:
             return AyuSettingsSection.deleted.rawValue
         case let .toggle(toggle, _):
-            return toggle == .saveDeletedMessages ? AyuSettingsSection.deleted.rawValue : AyuSettingsSection.deletedScope.rawValue
+            switch toggle {
+            case .saveDeletedMessages:
+                return AyuSettingsSection.deleted.rawValue
+            case .saveEditHistory:
+                return AyuSettingsSection.edits.rawValue
+            default:
+                return AyuSettingsSection.deletedScope.rawValue
+            }
         case .scopeFooter:
             return AyuSettingsSection.deletedScope.rawValue
+        case .editsHeader, .editsFooter:
+            return AyuSettingsSection.edits.rawValue
         }
     }
 
@@ -89,11 +106,22 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
             return 0
         case let .toggle(toggle, _):
             // saveDeletedMessages sits between the header and the footer of the first section
-            return toggle == .saveDeletedMessages ? 1 : 100 + toggle.rawValue
+            switch toggle {
+            case .saveDeletedMessages:
+                return 1
+            case .saveEditHistory:
+                return 301
+            default:
+                return 100 + toggle.rawValue
+            }
         case .deletedFooter:
             return 2
         case .scopeFooter:
             return 200
+        case .editsHeader:
+            return 300
+        case .editsFooter:
+            return 302
         }
     }
 
@@ -112,6 +140,10 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
             })
         case .deletedFooter:
             return ItemListTextItem(presentationData: presentationData, text: .plain("Сообщения, которые удалил собеседник, остаются в чате с пометкой 🗑. Сохраняется только то, что уже было загружено на это устройство."), sectionId: self.section)
+        case .editsHeader:
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: "ИСТОРИЯ ПРАВОК", sectionId: self.section)
+        case .editsFooter:
+            return ItemListTextItem(presentationData: presentationData, text: .plain("Прежние версии изменённых сообщений собеседников. Открываются через меню сообщения ▸ «История правок»."), sectionId: self.section)
         case .scopeFooter:
             return ItemListTextItem(presentationData: presentationData, text: .plain("Медиа удалённых сообщений не стирается ни ручной очисткой кэша, ни автоудалением по сроку хранения. Исключение — лимит размера кэша: при нём старые файлы могут удалиться."), sectionId: self.section)
         }
@@ -132,6 +164,10 @@ private func ayuSettingsEntries(settings: AyuSettings) -> [AyuSettingsEntry] {
         }
         entries.append(.scopeFooter)
     }
+
+    entries.append(.editsHeader)
+    entries.append(.toggle(.saveEditHistory, settings.saveEditHistory))
+    entries.append(.editsFooter)
 
     return entries
 }

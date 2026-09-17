@@ -1975,6 +1975,18 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
             clearCacheAsDelete = true
         }
         
+        // AyuGram: previous versions of an edited incoming message
+        if messages.count == 1, message.id.namespace == Namespaces.Message.Cloud, message.flags.contains(.Incoming), message.attributes.contains(where: { $0 is EditedMessageAttribute }) {
+            actions.append(.action(ContextMenuActionItem(text: "История правок", icon: { theme in
+                return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Edit"), color: theme.actionSheet.primaryTextColor)
+            }, action: { c, _ in
+                c?.dismiss(completion: {
+                    let controller = ayuEditHistoryController(context: context, messageId: messages[0].id)
+                    controllerInteraction.navigationController()?.pushViewController(controller)
+                })
+            })))
+        }
+        
         if !hasViewStats, messages[0].forwardInfo == nil {
             for media in message.media {
                 if let poll = media as? TelegramMediaPoll, message.id.namespace == Namespaces.Message.Cloud, poll.pollId.namespace == Namespaces.Media.CloudPoll, poll.results.canViewStats {
