@@ -25,7 +25,10 @@ func ayuShouldKeepDeletedMessage(transaction: Transaction, message: Message, set
         return false
     }
 
-    switch transaction.getPeer(message.id.peerId) {
+    guard let peer = transaction.getPeer(message.id.peerId) else {
+        return false
+    }
+    switch peer {
     case let user as TelegramUser:
         if user.id.id._internalGetInt64Value() == 777000 {
             return false
