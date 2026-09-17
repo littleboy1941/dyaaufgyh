@@ -4015,7 +4015,9 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
         }
         
         self.currentAppliedDeleteAnimationCorrelationIds = appliedDeleteAnimationCorrelationIds
-        
+
+        self.ayuAnimateNewlyDeletedMessages(transition: transition)
+
         let animated = transition.options.contains(.AnimateInsertion)
         
         var previousCloneView: UIView?
@@ -5150,6 +5152,100 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
         self.currentSendAnimationCorrelationIds = value
     }
     
+    // AyuGram: a message deleted by the other side stays in the history with AyuDeletedMessageAttribute.
+    // When that happens while the chat is open, dust the bubble and fade it back in (semi-transparent,
+    // see ayuDeletedMessageAlpha). Reopening the chat shows the deleted state without animation.
+    private func ayuAnimateNewlyDeletedMessages(transition: ChatHistoryListViewTransition) {
+        guard self.allowDustEffect, let previousHistoryView = self.historyView else {
+            return
+        }
+
+        var previouslyNotDeletedStableIds = Set<UInt32>()
+        for entry in previousHistoryView.filteredEntries {
+            switch entry {
+            case let .MessageEntry(message, _, _, _, _, _):
+                if message.ayuDeletedDate == nil {
+                    previouslyNotDeletedStableIds.insert(message.stableId)
+                }
+            case let .MessageGroupEntry(_, messages, _):
+                for message in messages where message.0.ayuDeletedDate == nil {
+                    previouslyNotDeletedStableIds.insert(message.0.stableId)
+                }
+            default:
+                break
+            }
+        }
+        if previouslyNotDeletedStableIds.isEmpty {
+            return
+        }
+
+        var newlyDeletedStableIds = Set<UInt32>()
+        for entry in transition.historyView.filteredEntries {
+            switch entry {
+            case let .MessageEntry(message, _, _, _, _, _):
+                if message.ayuDeletedDate != nil && previouslyNotDeletedStableIds.contains(message.stableId) {
+                    newlyDeletedStableIds.insert(message.stableId)
+                }
+            case let .MessageGroupEntry(_, messages, _):
+                for message in messages where message.0.ayuDeletedDate != nil && previouslyNotDeletedStableIds.contains(message.0.stableId) {
+                    newlyDeletedStableIds.insert(message.0.stableId)
+                }
+            default:
+                break
+            }
+        }
+        if newlyDeletedStableIds.isEmpty {
+            return
+        }
+
+        var foundItemNodes: [ChatMessageItemView] = []
+        self.forEachItemNode { itemNode in
+            guard let itemNode = itemNode as? ChatMessageItemView, let item = itemNode.item, itemNode.bounds.height <= 1800.0 else {
+                return
+            }
+            if let bubbleItemNode = itemNode as? ChatMessageBubbleItemNode, bubbleItemNode.isServiceLikeMessage() {
+                return
+            }
+            if item.content.contains(where: { newlyDeletedStableIds.contains($0.0.stableId) }) {
+                foundItemNodes.append(itemNode)
+            }
+        }
+        if foundItemNodes.isEmpty {
+            return
+        }
+
+        if self.dustEffectLayer == nil {
+            let dustEffectLayer = DustEffectLayer()
+            dustEffectLayer.position = self.bounds.center
+            dustEffectLayer.bounds = CGRect(origin: CGPoint(), size: self.bounds.size)
+            self.dustEffectLayer = dustEffectLayer
+            dustEffectLayer.zPosition = 10.0
+            if self.rotated {
+                dustEffectLayer.transform = CATransform3DMakeRotation(CGFloat(Double.pi), 0.0, 0.0, 1.0)
+            }
+            self.layer.addSublayer(dustEffectLayer)
+            dustEffectLayer.becameEmpty = { [weak self] in
+                guard let self else {
+                    return
+                }
+                self.dustEffectLayer?.removeFromSuperlayer()
+                self.dustEffectLayer = nil
+            }
+        }
+        guard let dustEffectLayer = self.dustEffectLayer else {
+            return
+        }
+        for itemNode in foundItemNodes {
+            guard let (image, subFrame) = itemNode.makeContentSnapshot() else {
+                continue
+            }
+            let itemFrame = itemNode.layer.convert(subFrame, to: dustEffectLayer)
+            dustEffectLayer.addItem(frame: itemFrame, image: image)
+            // Hidden while the dust flies, then fades in to the deleted-message alpha that setupItem applies.
+            itemNode.layer.animateAlpha(from: 0.0, to: ayuDeletedMessageAlpha, duration: 0.5, delay: 1.0)
+        }
+    }
+
     private var currentDeleteAnimationCorrelationIds = Set<UInt32>()
     func setCurrentDeleteAnimationCorrelationIds(_ value: Set<UInt32>) {
         self.currentDeleteAnimationCorrelationIds = value

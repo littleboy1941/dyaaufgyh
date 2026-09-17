@@ -18,6 +18,9 @@ import AnimatedStickerNode
 import TelegramAnimatedStickerNode
 import LottieMetal
 
+// AyuGram: opacity of a message deleted by the other side (kept with AyuDeletedMessageAttribute)
+public let ayuDeletedMessageAlpha: CGFloat = 0.65
+
 public func chatMessageItemLayoutConstants(_ constants: (ChatMessageItemLayoutConstants, ChatMessageItemLayoutConstants), params: ListViewItemLayoutParams, presentationData: ChatPresentationData) -> ChatMessageItemLayoutConstants {
     var result: ChatMessageItemLayoutConstants
     if params.width > 680.0 {
@@ -689,6 +692,9 @@ open class ChatMessageItemView: ListViewItemNode, ChatMessageItemNodeProtocol {
     
     open func setupItem(_ item: ChatMessageItem, synchronousLoad: Bool) {
         self.item = item
+        
+        let isAyuDeleted = item.content.allSatisfy({ $0.0.attributes.contains(where: { $0 is AyuDeletedMessageAttribute }) })
+        self.alpha = isAyuDeleted ? ayuDeletedMessageAlpha : 1.0
     }
     
     open func updateAccessibilityData(_ accessibilityData: ChatMessageAccessibilityData) {
