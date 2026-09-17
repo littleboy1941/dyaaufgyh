@@ -77,7 +77,10 @@ jobs:
       - name: Bazel cache size (restored)
         run: du -sh /Users/Shared/bazel-disk-cache 2>/dev/null || echo "no cache"
 
+      # Shorter than the job timeout: if the runner hangs the build step is killed
+      # while there is still time to save the Bazel cache.
       - name: Build
+        timeout-minutes: 240
         env:
           TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
           TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
