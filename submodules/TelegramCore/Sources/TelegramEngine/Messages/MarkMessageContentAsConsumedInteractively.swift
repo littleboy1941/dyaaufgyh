@@ -53,7 +53,9 @@ private func markMessageContentAsConsumedLocallyInteractively(postbox: Postbox, 
                         updateMessage = true
                         
                         if message.id.peerId.namespace == Namespaces.Peer.SecretChat {
-                            if let state = transaction.getPeerChatState(message.id.peerId) as? SecretChatState {
+                            // AyuGram ghost mode: secret chats report a read through their own encrypted
+                            // service action, so it has to be skipped before the operation is queued
+                            if !ayuSettingsSnapshot.ghostHidesMediaViews, let state = transaction.getPeerChatState(message.id.peerId) as? SecretChatState {
                                 var layer: SecretChatLayer?
                                 switch state.embeddedState {
                                     case .terminated, .handshake:

@@ -476,21 +476,35 @@ private class ReplyThreadHistoryContextImpl {
                 }
             }
 
+            // AyuGram ghost mode: only the receipt is dropped. Revalidation below still runs, because it is
+            // what keeps the local unread counter of the thread correct.
+            let ayuHideReading = ayuSettingsSnapshot.ghostHidesReading
+            
             if let subPeerId {
-                let signal = strongSelf.account.network.request(Api.functions.messages.readSavedHistory(parentPeer: inputPeer, peer: subPeerId, maxId: messageIndex.id.id))
-                |> `catch` { _ -> Signal<Api.Bool, NoError> in
-                    return .single(.boolFalse)
+                let signal: Signal<Never, NoError>
+                if ayuHideReading {
+                    signal = .complete()
+                } else {
+                    signal = strongSelf.account.network.request(Api.functions.messages.readSavedHistory(parentPeer: inputPeer, peer: subPeerId, maxId: messageIndex.id.id))
+                    |> `catch` { _ -> Signal<Api.Bool, NoError> in
+                        return .single(.boolFalse)
+                    }
+                    |> ignoreValues
                 }
-                |> ignoreValues
                 if revalidate {
                 }
                 strongSelf.readDisposable.set(signal.start())
             } else {
-                var signal = strongSelf.account.network.request(Api.functions.messages.readDiscussion(peer: inputPeer, msgId: Int32(clamping: threadId), readMaxId: messageIndex.id.id))
-                |> `catch` { _ -> Signal<Api.Bool, NoError> in
-                    return .single(.boolFalse)
+                var signal: Signal<Never, NoError>
+                if ayuHideReading {
+                    signal = .complete()
+                } else {
+                    signal = strongSelf.account.network.request(Api.functions.messages.readDiscussion(peer: inputPeer, msgId: Int32(clamping: threadId), readMaxId: messageIndex.id.id))
+                    |> `catch` { _ -> Signal<Api.Bool, NoError> in
+                        return .single(.boolFalse)
+                    }
+                    |> ignoreValues
                 }
-                |> ignoreValues
                 if revalidate {
                     let validateSignal = strongSelf.account.network.request(Api.functions.messages.getDiscussionMessage(peer: inputPeer, msgId: Int32(clamping: threadId)))
                     |> map { result -> (MessageId?, Int) in

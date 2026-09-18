@@ -31,6 +31,14 @@ private enum AyuSettingsToggle: Int32 {
     case dontNotifyScreenshots
     case dontNotifyScreenshotsInSecretChats
     case ignoreCopyRestrictions
+    case ghostMode
+    case ghostDontReadMessages
+    case ghostDontReadMedia
+    case ghostDontCountViews
+    case ghostDontReadStories
+    case ghostDontSendTyping
+    case ghostDontSendOnline
+    case ghostOfflineAfterSend
 
     var keyPath: WritableKeyPath<AyuSettings, Bool> {
         switch self {
@@ -58,6 +66,22 @@ private enum AyuSettingsToggle: Int32 {
             return \.dontNotifyScreenshotsInSecretChats
         case .ignoreCopyRestrictions:
             return \.ignoreCopyRestrictions
+        case .ghostMode:
+            return \.ghostMode
+        case .ghostDontReadMessages:
+            return \.ghostDontReadMessages
+        case .ghostDontReadMedia:
+            return \.ghostDontReadMedia
+        case .ghostDontCountViews:
+            return \.ghostDontCountViews
+        case .ghostDontReadStories:
+            return \.ghostDontReadStories
+        case .ghostDontSendTyping:
+            return \.ghostDontSendTyping
+        case .ghostDontSendOnline:
+            return \.ghostDontSendOnline
+        case .ghostOfflineAfterSend:
+            return \.ghostOfflineAfterSend
         }
     }
 
@@ -87,6 +111,22 @@ private enum AyuSettingsToggle: Int32 {
             return "Не уведомлять в секретных чатах"
         case .ignoreCopyRestrictions:
             return "Игнорировать запрет пересылки"
+        case .ghostMode:
+            return "Режим призрака"
+        case .ghostDontReadMessages:
+            return "Не отмечать прочитанным"
+        case .ghostDontReadMedia:
+            return "Не отмечать медиа просмотренным"
+        case .ghostDontCountViews:
+            return "Не считать просмотр в каналах"
+        case .ghostDontReadStories:
+            return "Не отмечать истории"
+        case .ghostDontSendTyping:
+            return "Не показывать «печатает»"
+        case .ghostDontSendOnline:
+            return "Не показывать себя в сети"
+        case .ghostOfflineAfterSend:
+            return "Уходить офлайн после отправки"
         }
     }
 }
@@ -97,6 +137,8 @@ private enum AyuSettingsSection: Int32 {
     case edits
     case selfDestructing
     case restrictions
+    case ghost
+    case ghostOptions
 }
 
 private enum AyuSettingsEntry: ItemListNodeEntry {
@@ -110,6 +152,9 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
     case selfDestructingFooter
     case restrictionsHeader
     case restrictionsFooter
+    case ghostHeader
+    case ghostFooter
+    case ghostOptionsFooter
 
     var section: ItemListSectionId {
         switch self {
@@ -125,6 +170,10 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
                 return AyuSettingsSection.selfDestructing.rawValue
             case .allowScreenCapture, .dontNotifyScreenshots, .dontNotifyScreenshotsInSecretChats, .ignoreCopyRestrictions:
                 return AyuSettingsSection.restrictions.rawValue
+            case .ghostMode:
+                return AyuSettingsSection.ghost.rawValue
+            case .ghostDontReadMessages, .ghostDontReadMedia, .ghostDontCountViews, .ghostDontReadStories, .ghostDontSendTyping, .ghostDontSendOnline, .ghostOfflineAfterSend:
+                return AyuSettingsSection.ghostOptions.rawValue
             default:
                 return AyuSettingsSection.deletedScope.rawValue
             }
@@ -136,6 +185,10 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
             return AyuSettingsSection.selfDestructing.rawValue
         case .restrictionsHeader, .restrictionsFooter:
             return AyuSettingsSection.restrictions.rawValue
+        case .ghostHeader, .ghostFooter:
+            return AyuSettingsSection.ghost.rawValue
+        case .ghostOptionsFooter:
+            return AyuSettingsSection.ghostOptions.rawValue
         }
     }
 
@@ -160,6 +213,22 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
                 return 503
             case .ignoreCopyRestrictions:
                 return 504
+            case .ghostMode:
+                return 601
+            case .ghostDontReadMessages:
+                return 701
+            case .ghostDontReadMedia:
+                return 702
+            case .ghostDontCountViews:
+                return 703
+            case .ghostDontReadStories:
+                return 704
+            case .ghostDontSendTyping:
+                return 705
+            case .ghostDontSendOnline:
+                return 706
+            case .ghostOfflineAfterSend:
+                return 707
             default:
                 return 100 + toggle.rawValue
             }
@@ -179,6 +248,12 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
             return 500
         case .restrictionsFooter:
             return 505
+        case .ghostHeader:
+            return 600
+        case .ghostFooter:
+            return 602
+        case .ghostOptionsFooter:
+            return 800
         }
     }
 
@@ -205,6 +280,12 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
             return ItemListSectionHeaderItem(presentationData: presentationData, text: "ОДНОРАЗОВЫЕ МЕДИА", sectionId: self.section)
         case .selfDestructingFooter:
             return ItemListTextItem(presentationData: presentationData, text: .plain("Фото, видео, голосовые и кружки с таймером или «просмотр один раз» не исчезают: у вас они выглядят неоткрытыми и открываются сколько угодно раз, а собеседник видит, что медиа просмотрено. Отметка уходит после полной загрузки файла."), sectionId: self.section)
+        case .ghostHeader:
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: "РЕЖИМ ПРИЗРАКА", sectionId: self.section)
+        case .ghostFooter:
+            return ItemListTextItem(presentationData: presentationData, text: .plain("Пока режим включён, сервер не узнаёт, что вы прочитали чат, открыли медиа, посмотрели историю, печатаете или находитесь в сети. Локально всё выглядит как обычно: чаты становятся прочитанными, медиа открывается."), sectionId: self.section)
+        case .ghostOptionsFooter:
+            return ItemListTextItem(presentationData: presentationData, text: .plain("Полностью невидимым режим не делает. Отправка сообщения помечает вас в сети на стороне сервера — «Уходить офлайн после отправки» возвращает статус обратно через секунду, но само мелькание убрать нельзя. Ответ или реакция на историю тоже раскрывают просмотр. Непрочитанные упоминания и реакции отмечаются всегда, иначе их счётчик не сбросится.\n\nЕсли параллельно открыт обычный Telegram на другом устройстве, он честно сообщит, что вы в сети."), sectionId: self.section)
         case .restrictionsHeader:
             return ItemListSectionHeaderItem(presentationData: presentationData, text: "СНЯТИЕ ОГРАНИЧЕНИЙ", sectionId: self.section)
         case .restrictionsFooter:
@@ -244,6 +325,18 @@ private func ayuSettingsEntries(settings: AyuSettings) -> [AyuSettingsEntry] {
         entries.append(.toggle(toggle, settings[keyPath: toggle.keyPath]))
     }
     entries.append(.restrictionsFooter)
+
+    entries.append(.ghostHeader)
+    entries.append(.toggle(.ghostMode, settings.ghostMode))
+    entries.append(.ghostFooter)
+
+    if settings.ghostMode {
+        let ghostToggles: [AyuSettingsToggle] = [.ghostDontReadMessages, .ghostDontReadMedia, .ghostDontCountViews, .ghostDontReadStories, .ghostDontSendTyping, .ghostDontSendOnline, .ghostOfflineAfterSend]
+        for toggle in ghostToggles {
+            entries.append(.toggle(toggle, settings[keyPath: toggle.keyPath]))
+        }
+        entries.append(.ghostOptionsFooter)
+    }
 
     return entries
 }

@@ -9,8 +9,12 @@ import SwiftSignalKit
 // layer is plain Objective-C in UIKitRuntimeUtils with no account in reach.
 //
 // The snapshot is written from the app side (SharedAccountContextImpl) for the primary account, so with
-// several accounts logged in the primary account's settings win. That is acceptable for these two uses:
-// both are local presentation decisions, not anything that is sent to the server.
+// several accounts logged in the primary account's settings win.
+//
+// KNOWN LIMITATION: ghost mode reads this snapshot to decide whether to send read receipts, view counts,
+// typing and presence, which are per-account network calls. With several accounts logged in, the primary
+// account's ghost setting therefore governs all of them. Fixing this means reading the setting per account
+// at each call site (most have a Transaction in reach, ManagedAccountPresence does not).
 private let ayuSettingsSnapshotValue = Atomic<AyuSettings>(value: AyuSettings.default)
 
 public var ayuSettingsSnapshot: AyuSettings {

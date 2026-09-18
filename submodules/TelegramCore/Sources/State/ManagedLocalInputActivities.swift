@@ -181,6 +181,10 @@ private func requestActivity(postbox: Postbox, network: Network, accountPeerId: 
                 if topMessageId != nil {
                     flags |= 1 << 0
                 }
+                // AyuGram ghost mode: covers typing as well as recording and upload progress
+                if ayuSettingsSnapshot.ghostHidesTyping {
+                    return .complete()
+                }
                 return network.request(Api.functions.messages.setTyping(flags: flags, peer: inputPeer, topMsgId: topMessageId, action: actionFromActivity(activity)))
                 |> `catch` { _ -> Signal<Api.Bool, NoError> in
                     return .single(.boolFalse)
@@ -190,6 +194,10 @@ private func requestActivity(postbox: Postbox, network: Network, accountPeerId: 
                 }
             } else if let peer = peer as? TelegramSecretChat, activity == .typingText {
                 let _ = PeerId(peer.id.toInt64())
+                // AyuGram ghost mode: secret chats go through their own typing request
+                if ayuSettingsSnapshot.ghostHidesTyping {
+                    return .complete()
+                }
                 return network.request(Api.functions.messages.setEncryptedTyping(peer: .inputEncryptedChat(.init(chatId: Int32(peer.id.id._internalGetInt64Value()), accessHash: peer.accessHash)), typing: .boolTrue))
                 |> `catch` { _ -> Signal<Api.Bool, NoError> in
                     return .single(.boolFalse)

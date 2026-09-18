@@ -214,6 +214,9 @@ public final class PendingMessageManager {
     }
     
     private let network: Network
+    // AyuGram ghost mode: throttles the offline status pushed after a send, so an album of ten photos
+    // does not fire ten identical requests
+    private var ayuLastOfflinePushTimestamp: Double = 0.0
     private let postbox: Postbox
     private let accountPeerId: PeerId
     private let auxiliaryMethods: AccountAuxiliaryMethods
@@ -2296,6 +2299,8 @@ public final class PendingMessageManager {
     }
     
     private func applySentMessage(postbox: Postbox, stateManager: AccountStateManager, message: Message, content: PendingMessageUploadedContentAndReuploadInfo, result: Api.Updates) -> Signal<Void, NoError> {
+        self.ayuPushOfflineAfterSend()
+        
         if let _ = message.peers[message.id.peerId] as? TelegramChannel {
             for attribute in message.attributes {
                 if let attribute = attribute as? PaidStarsMessageAttribute {
@@ -2359,7 +2364,27 @@ public final class PendingMessageManager {
         })
     }
     
+    // AyuGram ghost mode: sending marks us online on the server side, which suppressing the periodic online
+    // packet cannot prevent. Push an offline status right after so the exposure lasts a moment. Throttled,
+    // because an album reports each of its messages separately.
+    private func ayuPushOfflineAfterSend() {
+        guard ayuSettingsSnapshot.ghostGoesOfflineAfterSend else {
+            return
+        }
+        let timestamp = CFAbsoluteTimeGetCurrent()
+        guard timestamp > self.ayuLastOfflinePushTimestamp + 1.0 else {
+            return
+        }
+        self.ayuLastOfflinePushTimestamp = timestamp
+        let _ = (self.network.request(Api.functions.account.updateStatus(offline: .boolTrue))
+        |> `catch` { _ -> Signal<Api.Bool, NoError> in
+            return .complete()
+        }).start()
+    }
+
     private func applySentGroupMessages(postbox: Postbox, stateManager: AccountStateManager, messages: [Message], result: Api.Updates) -> Signal<Void, NoError> {
+        self.ayuPushOfflineAfterSend()
+        
         var namespace = Namespaces.Message.Cloud
         if let message = messages.first {
             if let channel = message.peers[message.id.peerId] as? TelegramChannel, channel.isMonoForum {

@@ -110,6 +110,14 @@ func managedSynchronizeConsumeMessageContentOperations(postbox: Postbox, network
 }
 
 private func synchronizeConsumeMessageContents(transaction: Transaction, network: Network, stateManager: AccountStateManager, peerId: PeerId, operation: SynchronizeConsumeMessageContentsOperation) -> Signal<Void, NoError> {
+    // AyuGram ghost mode: voice messages, round videos and view-once media stay locally consumed while the
+    // sender is never told. The caller drops the queued operation once this completes, so nothing retries.
+    // Personal mentions are NOT handled here (see ManagedConsumePersonalMessagesActions) and keep reporting,
+    // otherwise the server never clears their unread counter.
+    if ayuSettingsSnapshot.ghostHidesMediaViews {
+        return .complete()
+    }
+
     if peerId.namespace == Namespaces.Peer.CloudUser || peerId.namespace == Namespaces.Peer.CloudGroup {
         return network.request(Api.functions.messages.readMessageContents(id: operation.messageIds.map { $0.id }))
         |> map(Optional.init)

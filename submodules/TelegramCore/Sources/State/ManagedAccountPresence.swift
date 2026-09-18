@@ -43,6 +43,13 @@ private final class AccountPresenceManagerImpl {
     }
     
     private func updatePresence(_ isOnline: Bool) {
+        // AyuGram ghost mode: never announce ourselves as online. Going offline stays allowed, so the
+        // status still flips back after the server marks us online on its own (for example after a send).
+        var isOnline = isOnline
+        if ayuSettingsSnapshot.ghostHidesOnline {
+            isOnline = false
+        }
+
         let request: Signal<Api.Bool, MTRpcError>
         if isOnline {
             let timer = SignalKitTimer(timeout: 30.0, repeat: false, completion: { [weak self] in

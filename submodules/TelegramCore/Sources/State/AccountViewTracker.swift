@@ -720,7 +720,9 @@ public final class AccountViewTracker {
                             guard let peer = transaction.getPeer(peerId), let inputPeer = apiInputPeer(peer) else {
                                 return .complete()
                             }
-                            return account.network.request(Api.functions.messages.getMessagesViews(peer: inputPeer, id: messageIds.map { $0.id }, increment: .boolTrue))
+                            // AyuGram ghost mode: still fetch the counts, just do not add ourselves to them
+                            let incrementViews: Api.Bool = ayuSettingsSnapshot.ghostHidesChannelViews ? .boolFalse : .boolTrue
+                            return account.network.request(Api.functions.messages.getMessagesViews(peer: inputPeer, id: messageIds.map { $0.id }, increment: incrementViews))
                             |> map(Optional.init)
                             |> `catch` { _ -> Signal<Api.messages.MessageViews?, NoError> in
                                 return .single(nil)
@@ -960,6 +962,10 @@ public final class AccountViewTracker {
                     
                     if let account = self.account {
                         let signal = (account.postbox.transaction { transaction -> Signal<Void, NoError> in
+                            // AyuGram ghost mode: watching someone's live location is its own read receipt
+                            if ayuSettingsSnapshot.ghostHidesMediaViews {
+                                return .complete()
+                            }
                             if let peer = transaction.getPeer(peerId), let inputPeer = apiInputPeer(peer) {
                                 let request: Signal<Bool, MTRpcError>
                                 switch inputPeer {

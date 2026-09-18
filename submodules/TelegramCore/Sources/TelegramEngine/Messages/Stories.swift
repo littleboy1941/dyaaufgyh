@@ -2086,6 +2086,10 @@ func _internal_markStoryAsSeen(account: Account, peerId: PeerId, id: Int32, asPi
             }
             #endif
             
+            // AyuGram ghost mode
+            if ayuSettingsSnapshot.ghostHidesStoryViews {
+                return .complete()
+            }
             return account.network.request(Api.functions.stories.incrementStoryViews(peer: inputPeer, id: [id]))
             |> `catch` { _ -> Signal<Api.Bool, NoError> in
                 return .single(.boolFalse)
