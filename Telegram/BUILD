@@ -318,10 +318,12 @@ filegroup(
 
 # Goldagram: a classic appiconset. The stock icon is an Icon Composer bundle (Telegram.icon) built from
 # SVG layers with Liquid Glass applied on top, which suits a logo and not a photograph.
+# The appiconset has to sit inside an .xcassets catalog: outside one, actool does not emit CFBundleIcons
+# and the alternate-icon step then fails with a KeyError on that key.
 filegroup(
     name = "GoldagramAppIcon",
     srcs = glob([
-        "Telegram-iOS/Goldagram.appiconset/*",
+        "Telegram-iOS/GoldagramIcon.xcassets/**/*",
     ]),
 )
 
