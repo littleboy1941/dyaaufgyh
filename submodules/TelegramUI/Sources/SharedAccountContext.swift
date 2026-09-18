@@ -1065,6 +1065,10 @@ public final class SharedAccountContextImpl: SharedAccountContext {
         if applicationBindings.isMainApp {
             // AyuGram: keep the synchronous settings snapshot in step with the primary account, and mirror
             // allowScreenCapture into UIKitRuntimeUtils, which has no way to reach Postbox itself.
+            // Seed from the cached snapshot before the subscription delivers, so the first instant after a
+            // cold start already behaves like the rest of the session.
+            ayuSetAllowScreenCapture(ayuSettingsSnapshot.allowScreenCapture)
+            
             self.ayuSettingsDisposable.set((self.activeAccountContexts
             |> mapToSignal { primary, _, _ -> Signal<AyuSettings, NoError> in
                 guard let primary = primary else {
