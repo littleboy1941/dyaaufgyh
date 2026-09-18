@@ -4,6 +4,7 @@ import Display
 import AsyncDisplayKit
 import SwiftSignalKit
 import AVFoundation
+import TelegramCore
 
 private final class MediaPlayerNodeLayerNullAction: NSObject, CAAction {
     @objc func run(forKey event: String, object anObject: Any, arguments dict: [AnyHashable : Any]?) {
@@ -355,7 +356,9 @@ public final class MediaPlayerNode: ASDisplayNode {
                 if let strongSelf = self {
                     strongSelf.videoLayer = videoLayer
                     if #available(iOS 13.0, *) {
-                        videoLayer.preventsCapture = captureProtected
+                        // AyuGram: AVSampleBufferDisplayLayer hides itself from capture on its own, so
+                        // neutering setLayerDisableScreenshots is not enough for protected video
+                        videoLayer.preventsCapture = captureProtected && !ayuSettingsSnapshot.allowScreenCapture
                     }
                     strongSelf.updateLayout()
                     

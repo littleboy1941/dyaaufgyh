@@ -7775,7 +7775,7 @@ public final class ChatControllerImpl: TelegramBaseController, ChatController, G
                 if peerId.namespace == Namespaces.Peer.SecretChat {
                     self.screenCaptureManager = ScreenCaptureDetectionManager(check: { [weak self] in
                         if let strongSelf = self, strongSelf.traceVisibility() {
-                            if strongSelf.canReadHistoryValue {
+                            if strongSelf.canReadHistoryValue, !ayuSettingsSnapshot.dontNotifyScreenshotsInSecretChats {
                                 let _ = strongSelf.context.engine.messages.addSecretChatMessageScreenshot(peerId: peerId).startStandalone()
                             }
                             return true
@@ -7805,6 +7805,11 @@ public final class ChatControllerImpl: TelegramBaseController, ChatController, G
                     self.screenCaptureManager = ScreenCaptureDetectionManager(check: { [weak self] in
                         guard let self else {
                             return false
+                        }
+                        
+                        // AyuGram: keep a view-once voice message playing while the screen is being recorded
+                        if ayuSettingsSnapshot.allowScreenCapture {
+                            return true
                         }
                         
                         let _ = (self.context.sharedContext.mediaManager.globalMediaPlayerState

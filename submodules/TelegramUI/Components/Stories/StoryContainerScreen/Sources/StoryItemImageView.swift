@@ -66,6 +66,13 @@ final class StoryItemImageView: UIView {
     }
     
     func update(context: AccountContext, strings: PresentationStrings, peer: EnginePeer, storyId: Int32, media: EngineMedia, size: CGSize, isCaptureProtected: Bool, attemptSynchronous: Bool, transition: ComponentTransition) {
+        // AyuGram: stories hide their image from screenshots with their own secure-layer trick, separate
+        // from setLayerDisableScreenshots, so the setting has to be applied here as well.
+        var isCaptureProtected = isCaptureProtected
+        if ayuSettingsSnapshot.allowScreenCapture {
+            isCaptureProtected = false
+        }
+        
         self.backgroundColor = isCaptureProtected ? UIColor(rgb: 0x181818) : nil
         
         var dimensions: CGSize?

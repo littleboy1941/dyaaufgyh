@@ -955,8 +955,16 @@ extension ChatControllerImpl {
                             }
                         }
                         if let cachedUserData = peerView.cachedData as? CachedUserData {
-                            copyProtectionEnabled = cachedUserData.flags.contains(.copyProtectionEnabled) || cachedUserData.flags.contains(.myCopyProtectionEnabled)
-                            myCopyProtectionEnabled = cachedUserData.flags.contains(.myCopyProtectionEnabled)
+                            // AyuGram: myCopyProtectionEnabled reaches OpenChatMessage as `copyProtected` and
+                            // blocks sharing a document, so it has to be cleared too. The real value stays
+                            // readable from CachedUserData for the management UI in the profile.
+                            if ayuSettingsSnapshot.ignoreCopyRestrictions {
+                                copyProtectionEnabled = false
+                                myCopyProtectionEnabled = false
+                            } else {
+                                copyProtectionEnabled = cachedUserData.flags.contains(.copyProtectionEnabled) || cachedUserData.flags.contains(.myCopyProtectionEnabled)
+                                myCopyProtectionEnabled = cachedUserData.flags.contains(.myCopyProtectionEnabled)
+                            }
                         } else {
                             copyProtectionEnabled = peer.isCopyProtectionEnabled
                         }

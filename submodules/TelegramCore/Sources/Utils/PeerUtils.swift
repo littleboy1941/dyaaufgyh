@@ -252,6 +252,15 @@ public extension Peer {
     }
     
     var isCopyProtectionEnabled: Bool {
+        if ayuSettingsSnapshot.ignoreCopyRestrictions {
+            return false
+        }
+        return self.ayuRawIsCopyProtectionEnabled
+    }
+
+    // AyuGram: the untouched server value. `isCopyProtectionEnabled` above is a presentation decision and
+    // lies when the setting is on; logic that must keep the real flag uses this instead.
+    var ayuRawIsCopyProtectionEnabled: Bool {
         switch self {
         case let group as TelegramGroup:
             return group.flags.contains(.copyProtectionEnabled)

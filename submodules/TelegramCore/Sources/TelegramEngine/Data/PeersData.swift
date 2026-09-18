@@ -2350,6 +2350,9 @@ public extension TelegramEngine.EngineData.Item {
             }
 
             func extract(view: PostboxView) -> Result {
+                if ayuSettingsSnapshot.ignoreCopyRestrictions {
+                    return false
+                }
                 guard let view = view as? PeerView else {
                     preconditionFailure()
                 }
@@ -2385,6 +2388,9 @@ public extension TelegramEngine.EngineData.Item {
             }
 
             func extract(view: PostboxView) -> Result {
+                if ayuSettingsSnapshot.ignoreCopyRestrictions {
+                    return false
+                }
                 guard let view = view as? CachedPeerDataView else {
                     preconditionFailure()
                 }

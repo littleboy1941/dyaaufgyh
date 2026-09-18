@@ -2158,6 +2158,11 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
                         }
                     }
                 }
+                // AyuGram: private-chat copy protection is read straight off the cached user flags above,
+                // so the predicate override in TelegramCore does not cover this path
+                if ayuSettingsSnapshot.ignoreCopyRestrictions {
+                    isCopyProtectionEnabled = false
+                }
                 let alwaysDisplayTranscribeButton = ChatMessageItemAssociatedData.DisplayTranscribeButton(
                     canBeDisplayed: suggestAudioTranscription.0 < 2,
                     displayForNotConsumed: suggestAudioTranscription.1,

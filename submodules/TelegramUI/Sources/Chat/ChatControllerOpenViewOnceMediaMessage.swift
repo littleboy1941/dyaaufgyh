@@ -121,7 +121,8 @@ import ChatMediaInputStickerGridItem
 
 extension ChatControllerImpl {
     func openViewOnceMediaMessage(_ message: EngineMessage) {
-        if self.screenCaptureManager?.isRecordingActive == true {
+        // AyuGram: normally a view-once message refuses to open at all while the screen is being recorded
+        if self.screenCaptureManager?.isRecordingActive == true, !ayuSettingsSnapshot.allowScreenCapture {
             let controller = textAlertController(context: self.context, updatedPresentationData: self.updatedPresentationData, title: nil, text: self.presentationData.strings.Chat_PlayOnceMesasge_DisableScreenCapture, actions: [TextAlertAction(type: .defaultAction, title: self.presentationData.strings.Common_OK, action: {
             })])
             self.present(controller, in: .window(.root))

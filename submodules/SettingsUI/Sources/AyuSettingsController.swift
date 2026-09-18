@@ -27,6 +27,10 @@ private enum AyuSettingsToggle: Int32 {
     case saveDeletedMedia
     case saveEditHistory
     case keepSelfDestructingMedia
+    case allowScreenCapture
+    case dontNotifyScreenshots
+    case dontNotifyScreenshotsInSecretChats
+    case ignoreCopyRestrictions
 
     var keyPath: WritableKeyPath<AyuSettings, Bool> {
         switch self {
@@ -46,6 +50,14 @@ private enum AyuSettingsToggle: Int32 {
             return \.saveEditHistory
         case .keepSelfDestructingMedia:
             return \.keepSelfDestructingMedia
+        case .allowScreenCapture:
+            return \.allowScreenCapture
+        case .dontNotifyScreenshots:
+            return \.dontNotifyScreenshots
+        case .dontNotifyScreenshotsInSecretChats:
+            return \.dontNotifyScreenshotsInSecretChats
+        case .ignoreCopyRestrictions:
+            return \.ignoreCopyRestrictions
         }
     }
 
@@ -67,6 +79,14 @@ private enum AyuSettingsToggle: Int32 {
             return "Сохранять историю правок"
         case .keepSelfDestructingMedia:
             return "Сохранять одноразовые медиа"
+        case .allowScreenCapture:
+            return "Разрешить скриншоты и запись"
+        case .dontNotifyScreenshots:
+            return "Не уведомлять о скриншотах"
+        case .dontNotifyScreenshotsInSecretChats:
+            return "Не уведомлять в секретных чатах"
+        case .ignoreCopyRestrictions:
+            return "Игнорировать запрет пересылки"
         }
     }
 }
@@ -76,6 +96,7 @@ private enum AyuSettingsSection: Int32 {
     case deletedScope
     case edits
     case selfDestructing
+    case restrictions
 }
 
 private enum AyuSettingsEntry: ItemListNodeEntry {
@@ -87,6 +108,8 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
     case editsFooter
     case selfDestructingHeader
     case selfDestructingFooter
+    case restrictionsHeader
+    case restrictionsFooter
 
     var section: ItemListSectionId {
         switch self {
@@ -100,6 +123,8 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
                 return AyuSettingsSection.edits.rawValue
             case .keepSelfDestructingMedia:
                 return AyuSettingsSection.selfDestructing.rawValue
+            case .allowScreenCapture, .dontNotifyScreenshots, .dontNotifyScreenshotsInSecretChats, .ignoreCopyRestrictions:
+                return AyuSettingsSection.restrictions.rawValue
             default:
                 return AyuSettingsSection.deletedScope.rawValue
             }
@@ -109,6 +134,8 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
             return AyuSettingsSection.edits.rawValue
         case .selfDestructingHeader, .selfDestructingFooter:
             return AyuSettingsSection.selfDestructing.rawValue
+        case .restrictionsHeader, .restrictionsFooter:
+            return AyuSettingsSection.restrictions.rawValue
         }
     }
 
@@ -125,6 +152,14 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
                 return 301
             case .keepSelfDestructingMedia:
                 return 401
+            case .allowScreenCapture:
+                return 501
+            case .dontNotifyScreenshots:
+                return 502
+            case .dontNotifyScreenshotsInSecretChats:
+                return 503
+            case .ignoreCopyRestrictions:
+                return 504
             default:
                 return 100 + toggle.rawValue
             }
@@ -140,6 +175,10 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
             return 400
         case .selfDestructingFooter:
             return 402
+        case .restrictionsHeader:
+            return 500
+        case .restrictionsFooter:
+            return 505
         }
     }
 
@@ -166,6 +205,10 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
             return ItemListSectionHeaderItem(presentationData: presentationData, text: "ОДНОРАЗОВЫЕ МЕДИА", sectionId: self.section)
         case .selfDestructingFooter:
             return ItemListTextItem(presentationData: presentationData, text: .plain("Фото, видео, голосовые и кружки с таймером или «просмотр один раз» не исчезают: у вас они выглядят неоткрытыми и открываются сколько угодно раз, а собеседник видит, что медиа просмотрено. Отметка уходит после полной загрузки файла."), sectionId: self.section)
+        case .restrictionsHeader:
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: "СНЯТИЕ ОГРАНИЧЕНИЙ", sectionId: self.section)
+        case .restrictionsFooter:
+            return ItemListTextItem(presentationData: presentationData, text: .plain("Скриншоты и запись экрана больше не затемняются, а собеседник не получает уведомление о скриншоте. В чатах с запретом пересылки снова доступны сохранение, копирование и «Переслать» — но сама пересылка на сервере всё равно будет отклонена.\n\nУведомление в секретных чатах собеседник обычно ожидает, поэтому этот пункт выключен по умолчанию. Новые значения применяются к заново открытым чатам."), sectionId: self.section)
         case .scopeFooter:
             return ItemListTextItem(presentationData: presentationData, text: .plain("Медиа удалённых сообщений не стирается ни ручной очисткой кэша, ни автоудалением по сроку хранения. Исключение — лимит размера кэша: при нём старые файлы могут удалиться."), sectionId: self.section)
         }
@@ -194,6 +237,13 @@ private func ayuSettingsEntries(settings: AyuSettings) -> [AyuSettingsEntry] {
     entries.append(.selfDestructingHeader)
     entries.append(.toggle(.keepSelfDestructingMedia, settings.keepSelfDestructingMedia))
     entries.append(.selfDestructingFooter)
+
+    entries.append(.restrictionsHeader)
+    let restrictionToggles: [AyuSettingsToggle] = [.allowScreenCapture, .dontNotifyScreenshots, .dontNotifyScreenshotsInSecretChats, .ignoreCopyRestrictions]
+    for toggle in restrictionToggles {
+        entries.append(.toggle(toggle, settings[keyPath: toggle.keyPath]))
+    }
+    entries.append(.restrictionsFooter)
 
     return entries
 }

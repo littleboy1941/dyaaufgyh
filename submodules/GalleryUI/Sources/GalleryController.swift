@@ -851,6 +851,9 @@ public class GalleryController: ViewController, StandalonePresentableController,
                     if let peer = message.peers[message.id.peerId] as? TelegramGroup, let migrationPeerId = peer.migrationReference?.peerId, let migrationPeer = transaction.getPeer(migrationPeerId) {
                         return (message, migrationPeer.isCopyProtectionEnabled)
                     } else if let peer = message.peers[message.id.peerId] as? TelegramUser, let cachedUserData = transaction.getPeerCachedData(peerId: peer.id) as? CachedUserData {
+                        if ayuSettingsSnapshot.ignoreCopyRestrictions {
+                            return (message, false)
+                        }
                         return (message, cachedUserData.flags.contains(.copyProtectionEnabled) || cachedUserData.flags.contains(.myCopyProtectionEnabled))
                     }
                     return (message, false)
@@ -1432,7 +1435,7 @@ public class GalleryController: ViewController, StandalonePresentableController,
             if id.peerId.namespace == Namespaces.Peer.SecretChat {
                 self.screenCaptureEventsDisposable = (screenCaptureEvents()
                 |> deliverOnMainQueue).start(next: { [weak self] _ in
-                    if let strongSelf = self, strongSelf.traceVisibility() {
+                    if let strongSelf = self, strongSelf.traceVisibility(), !ayuSettingsSnapshot.dontNotifyScreenshotsInSecretChats {
                         let _ = strongSelf.context.engine.messages.addSecretChatMessageScreenshot(peerId: id.peerId).start()
                     }
                 }).strict()

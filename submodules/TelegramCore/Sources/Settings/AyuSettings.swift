@@ -21,6 +21,15 @@ public struct AyuSettings: Equatable, Codable {
     // Self-destructing and view-once media stays in the chat and can be opened again
     public var keepSelfDestructingMedia: Bool = true
 
+    // Screenshots and screen recording are not blacked out, and view-once playback is not paused
+    public var allowScreenCapture: Bool = true
+    // Taking a screenshot does not notify the other side (cloud chats: view-once media)
+    public var dontNotifyScreenshots: Bool = true
+    // The same for secret chats, where the notification is normally expected: off by default
+    public var dontNotifyScreenshotsInSecretChats: Bool = false
+    // Saving, copying and the Forward button are available in chats that restrict them
+    public var ignoreCopyRestrictions: Bool = true
+
     public init() {
     }
 
@@ -33,6 +42,10 @@ public struct AyuSettings: Equatable, Codable {
         case saveDeletedMedia
         case saveEditHistory
         case keepSelfDestructingMedia
+        case allowScreenCapture
+        case dontNotifyScreenshots
+        case dontNotifyScreenshotsInSecretChats
+        case ignoreCopyRestrictions
     }
 
     // Every key is optional so that settings saved by an older build decode with defaults
@@ -47,6 +60,10 @@ public struct AyuSettings: Equatable, Codable {
         self.saveDeletedMedia = try container.decodeIfPresent(Bool.self, forKey: .saveDeletedMedia) ?? defaults.saveDeletedMedia
         self.saveEditHistory = try container.decodeIfPresent(Bool.self, forKey: .saveEditHistory) ?? defaults.saveEditHistory
         self.keepSelfDestructingMedia = try container.decodeIfPresent(Bool.self, forKey: .keepSelfDestructingMedia) ?? defaults.keepSelfDestructingMedia
+        self.allowScreenCapture = try container.decodeIfPresent(Bool.self, forKey: .allowScreenCapture) ?? defaults.allowScreenCapture
+        self.dontNotifyScreenshots = try container.decodeIfPresent(Bool.self, forKey: .dontNotifyScreenshots) ?? defaults.dontNotifyScreenshots
+        self.dontNotifyScreenshotsInSecretChats = try container.decodeIfPresent(Bool.self, forKey: .dontNotifyScreenshotsInSecretChats) ?? defaults.dontNotifyScreenshotsInSecretChats
+        self.ignoreCopyRestrictions = try container.decodeIfPresent(Bool.self, forKey: .ignoreCopyRestrictions) ?? defaults.ignoreCopyRestrictions
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -59,6 +76,10 @@ public struct AyuSettings: Equatable, Codable {
         try container.encode(self.saveDeletedMedia, forKey: .saveDeletedMedia)
         try container.encode(self.saveEditHistory, forKey: .saveEditHistory)
         try container.encode(self.keepSelfDestructingMedia, forKey: .keepSelfDestructingMedia)
+        try container.encode(self.allowScreenCapture, forKey: .allowScreenCapture)
+        try container.encode(self.dontNotifyScreenshots, forKey: .dontNotifyScreenshots)
+        try container.encode(self.dontNotifyScreenshotsInSecretChats, forKey: .dontNotifyScreenshotsInSecretChats)
+        try container.encode(self.ignoreCopyRestrictions, forKey: .ignoreCopyRestrictions)
     }
 }
 

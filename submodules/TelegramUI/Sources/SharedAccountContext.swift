@@ -17,6 +17,7 @@ import ChatListUI
 import PeerInfoUI
 import SettingsUI
 import UrlHandling
+import UIKitRuntimeUtils
 import LegacyMediaPickerUI
 import LocalMediaResources
 import OverlayStatusController
@@ -298,6 +299,7 @@ public final class SharedAccountContextImpl: SharedAccountContext {
     private var invalidatedApsToken: Data?
     
     private let energyUsageAutomaticDisposable = MetaDisposable()
+    private let ayuSettingsDisposable = MetaDisposable()
     
     init(mainWindow: Window1?, sharedContainerPath: String, basePath: String, encryptionParameters: ValueBoxEncryptionParameters, accountManager: AccountManager<TelegramAccountManagerTypes>, appLockContext: AppLockContext, notificationController: NotificationContainerController?, applicationBindings: TelegramApplicationBindings, initialPresentationDataAndSettings: InitialPresentationDataAndSettings, networkArguments: NetworkInitializationArguments, hasInAppPurchases: Bool, rootPath: String, legacyBasePath: String?, apsNotificationToken: Signal<Data?, NoError>, voipNotificationToken: Signal<Data?, NoError>, firebaseSecretStream: Signal<[String: String], NoError>, setNotificationCall: @escaping (PresentationCall?) -> Void, navigateToChat: @escaping (AccountRecordId, PeerId, MessageId?, Bool) -> Void, displayUpgradeProgress: @escaping (Float?) -> Void = { _ in }, appDelegate: AppDelegate?, testingEnvironment: Bool = false) {
         assert(Queue.mainQueue().isCurrent())
@@ -1061,6 +1063,21 @@ public final class SharedAccountContextImpl: SharedAccountContext {
         self.updateNotificationTokensRegistration()
         
         if applicationBindings.isMainApp {
+            // AyuGram: keep the synchronous settings snapshot in step with the primary account, and mirror
+            // allowScreenCapture into UIKitRuntimeUtils, which has no way to reach Postbox itself.
+            self.ayuSettingsDisposable.set((self.activeAccountContexts
+            |> mapToSignal { primary, _, _ -> Signal<AyuSettings, NoError> in
+                guard let primary = primary else {
+                    return .single(AyuSettings.default)
+                }
+                return primary.engine.data.subscribe(TelegramEngine.EngineData.Item.Configuration.Ayu())
+            }
+            |> distinctUntilChanged
+            |> deliverOnMainQueue).start(next: { settings in
+                ayuSetSettingsSnapshot(settings)
+                ayuSetAllowScreenCapture(settings.allowScreenCapture)
+            }))
+            
             self.widgetDataContext = WidgetDataContext(basePath: self.basePath, inForeground: self.applicationBindings.applicationInForeground, activeAccounts: self.activeAccountContexts
             |> map { _, accounts, _ in
                 return accounts.map { $0.1.account }
@@ -1102,6 +1119,7 @@ public final class SharedAccountContextImpl: SharedAccountContext {
     deinit {
         assertionFailure("SharedAccountContextImpl is not supposed to be deallocated")
         self.registeredNotificationTokensDisposable.dispose()
+        self.ayuSettingsDisposable.dispose()
         self.presentationDataDisposable.dispose()
         self.automaticMediaDownloadSettingsDisposable.dispose()
         self.currentAutodownloadSettingsDisposable.dispose()

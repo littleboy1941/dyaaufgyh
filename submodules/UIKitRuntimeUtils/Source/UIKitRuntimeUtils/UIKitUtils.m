@@ -296,7 +296,25 @@ NSObject * _Nullable makeColorMatrixFilter() {
 
 static const void *layerDisableScreenshotsKey = &layerDisableScreenshotsKey;
 
+// Starts out matching AyuSettings.default (allowScreenCapture == true) so that the window before the
+// app pushes the real value is not a mix of protected and unprotected content.
+static bool ayuAllowScreenCaptureValue = true;
+
+void ayuSetAllowScreenCapture(bool allowScreenCapture) {
+    ayuAllowScreenCaptureValue = allowScreenCapture;
+}
+
+bool ayuAllowScreenCapture(void) {
+    return ayuAllowScreenCaptureValue;
+}
+
 void setLayerDisableScreenshots(CALayer * _Nonnull layer, bool disableScreenshots) {
+    // AyuGram: forcing the flag off here (instead of returning early) also unprotects layers that
+    // were set up while the setting was still disabled.
+    if (ayuAllowScreenCaptureValue) {
+        disableScreenshots = false;
+    }
+
     static UITextField *textField = nil;
     static UIView *secureView = nil;
     static dispatch_once_t onceToken;

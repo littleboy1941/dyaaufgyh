@@ -36,6 +36,11 @@ NSObject * _Nullable makeMonochromeFilter();
 NSObject * _Nullable makeDisplacementMapFilter();
 NSObject * _Nullable makeColorMatrixFilter();
 
+// AyuGram: when allowed, setLayerDisableScreenshots stops hiding content from screenshots and
+// screen recording. Mirrors AyuSettings.allowScreenCapture; set from the app side.
+void ayuSetAllowScreenCapture(bool allowScreenCapture);
+bool ayuAllowScreenCapture(void);
+
 void setLayerDisableScreenshots(CALayer * _Nonnull layer, bool disableScreenshots);
 bool getLayerDisableScreenshots(CALayer * _Nonnull layer);
 

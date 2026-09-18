@@ -180,6 +180,57 @@
 6. Выключить настройку — одноразки ведут себя штатно.
 7. Настройки ▸ Данные и память ▸ Использование памяти ▸ очистить кэш — одноразки открываются.
 
+### ✅ Снятие ограничений на скриншоты, запись и пересылку v1 (2026-09-18, написано, на телефоне не проверено)
+
+Повод: попытка заснять фичу с одноразовыми медиа — на видео пустой экран.
+
+В Telegram это **три независимых механизма** скрытия контента плюс отдельные уведомления и отдельный запрет пересылки — одной точки нет:
+
+1. `setLayerDisableScreenshots` (`UIKitRuntimeUtils/.../UIKitUtils.m`) — подсовывает `CALayer` внутрь `UITextField` с `isSecureTextEntry`. Обслуживает секретные чаты, copy-protected пиров, одноразки, галерею, профиль, закреплённое, context menu и pinch.
+2. `MediaPlayerNode.swift` — `AVSampleBufferDisplayLayer.preventsCapture` для видео (системный iOS-механизм, с п.1 никак не связан).
+3. `StoryItemImageView.swift` — у историй своя копия трюка с `UITextField`.
+
+Настройки (все в `AyuSettings`, раздел «СНЯТИЕ ОГРАНИЧЕНИЙ»):
+
+- `allowScreenCapture` (вкл) — гасит все три механизма выше + две помехи записи: отказ открывать view-once при активной записи (`ChatControllerOpenViewOnceMediaMessage.swift`) и паузу view-once голосового (`ChatController.swift`, ветка CloudUser).
+- `dontNotifyScreenshots` (вкл) — не отправлять `historyScreenshot` в облачных чатах (`SecretMediaPreviewController.swift`) — именно это палит при скрине одноразки.
+- `dontNotifyScreenshotsInSecretChats` (выкл по умолчанию) — то же для секретных (3 точки: `ChatController`, `GalleryController`, `SecretMediaPreviewController`). Выключено, потому что в секретном чате собеседник этого уведомления ждёт.
+- `ignoreCopyRestrictions` (вкл) — снимает noforwards: сохранение, копирование текста, выделение, «Поделиться», кнопка «Переслать», автосохранение в галерею.
+
+**Новая инфраструктура: синхронный снапшот настроек.** `TelegramCore/Sources/Settings/AyuSettingsSnapshot.swift` — `ayuSettingsSnapshot` / `ayuSetSettingsSnapshot` (`Atomic<AyuSettings>`). Нужен там, где нет ни транзакции, ни аккаунта: чистые предикаты `Message.isCopyProtected()` / `Peer.isCopyProtectionEnabled` и ObjC-слой `UIKitRuntimeUtils`. Обновляется подпиской в `SharedAccountContextImpl.init` (только `isMainApp`) по **primary-аккаунту**; с несколькими аккаунтами побеждает основной. Этот же снапшот пригодится для режима призрака.
+
+`ignoreCopyRestrictions` пришлось ставить не только в предикаты (`Message.isCopyProtected()`, `Peer.isCopyProtectionEnabled`, EngineData `CopyProtectionEnabled` и `MyCopyProtectionEnabled`), но и в **пять мест, где флаги читаются напрямую** в обход предикатов: `ChatHistoryListNode.swift` (питает `associatedData.isCopyProtectionEnabled` — без этого не работает выделение и копирование текста), `ChatControllerContentData.swift`, `GalleryController.swift`, `PeerInfoData.swift` + `PeerInfoScreen.swift`, `StoreDownloadedMedia.swift`.
+
+Отдельно важно: в `ChatControllerContentData.swift` гасится **и** `myCopyProtectionEnabled` (моя собственная защита в личном чате). Он доезжает до `OpenChatMessage` как `copyProtected` и запрещает «Поделиться» документом; настоящее значение по-прежнему читается из `CachedUserData` для экрана управления в профиле. Побочно исчезает подсказка «вы запретили сохранение» в меню сообщения.
+
+`Peer.ayuRawIsCopyProtectionEnabled` — неискажённое значение флага для логики, которая **не** является presentation-решением. Используется в `AccountStateManagementUtils` (пополнение недавних стикеров/GIF исходящими из защищённых чатов): там подмена предиката меняла бы локальные данные, а не только UI. Правило: всё, что не про отображение, читает raw-версию.
+
+Не трогали сознательно: `ChannelVisibilityController` и `PeerInfoScreenPerformButtonAction` (там флаги читаются для admin-UI «запретить пересылку» — нужно показывать настоящее значение); чат Telegram Notifications (скриншот там инвалидирует коды входа — это защита нас, не ограничение).
+
+Грабли, найденные по ходу (важно для любого теста записи экрана):
+
+- `ScreenCaptureDetection.swift` в `#if DEBUG` делает `value = !"".isEmpty`, то есть **в debug-сборке запись экрана всегда считается выключенной**. Поэтому отказ открыть view-once и пауза голосового в debug не воспроизводятся вообще — проверять эти два пункта можно только в release. Уведомление о скриншоте и затемнение слоёв от этого не зависят.
+- `ChatControllerNode.swift` в `#if DEBUG` не защищает `historyNodeContainer` вообще (но title accessory panel всё равно защищает).
+- `ayuAllowScreenCaptureValue` в ObjC инициализирован `true`, чтобы совпадать с `AyuSettings.default`: иначе до первой эмиссии подписки получался смешанный режим (видео и истории уже разрешены, а `setLayerDisableScreenshots` ещё защищает). Плата: если настройку выключить, в app extensions (у нас отключены) флаг останется `true` — им понадобится своя загрузка настройки, если extensions когда-нибудь включим.
+- Переключение настройки применяется к заново созданным слоям — надо переоткрыть чат.
+- `allowScreenCapture` — **глобальный** выключатель, он снимает затемнение и в чате с кодами входа Telegram (`isVerificationCodes`). Это сознательно: точка перехвата в ObjC не знает контекста. Инвалидация кодов входа при скриншоте при этом работает как раньше (не трогали).
+
+Ограничения:
+
+- **Сама пересылка из noforwards-чата всё равно упрётся в сервер** (`CHAT_FORWARDS_RESTRICTED`). Локально работают сохранение, копирование, внешний share и скриншот. Настоящая пересылка = AyuForward (скачать + перезалить), отдельная большая фича.
+- У историй закрыты только скриншот и запись. Кнопки Save/Forward/Share у story живут на своём флаге `EngineStoryItem.isForwardingDisabled` (не трогал: гейт в месте разбора флага сломает prefill приватности моих собственных stories).
+- Сохранение одноразового медиа в галерею всё ещё недоступно: оно запрещено не через copy protection, а через `containsSecretMedia`, и `SecretMediaPreviewController` показывает урезанный footer без кнопки share. Нужна отдельная UI-работа.
+- Снапшот настроек один на все аккаунты (primary).
+
+Чек-лист теста:
+
+1. Одноразовое фото: открыть и записать видео экрана → на записи видно фото, собеседнику не приходит «сделал скриншот».
+2. Скриншот одноразки → картинка на скрине есть, уведомления нет.
+3. Одноразовое видео и кружок при записи экрана (проверяет `preventsCapture`).
+4. Канал с запретом пересылки: текст выделяется и копируется, фото сохраняется в галерею, скриншот не чёрный.
+5. Секретный чат: скриншот виден, но уведомление собеседнику УХОДИТ (подпункт выключен по умолчанию). Включить подпункт → не уходит.
+6. Выключить «Разрешить скриншоты», переоткрыть чат → затемнение вернулось.
+
 ### Сборки 2026-09-17
 
 - run 35194019169 — удалённые v2 (первая сборка с новым public API, ~1 ч 20 мин Build).
@@ -189,16 +240,17 @@
 
 ### План
 
-1. История правок (текст).
-2. Режим призрака. Перехват нужен во всех путях:
+1. Режим призрака. Перехват нужен во всех путях:
    - `readHistory` и `readDiscussion`;
    - `readMessageContents`;
    - `getMessagesViews` с `increment`;
    - `stories.readStories` и `incrementStoryViews`;
    - `setTyping`;
    - `updateStatus` с отправкой offline после отправки сообщения.
-3. Название «AyuGram» и иконка (пользователь решил делать вместе с одной из первых фич).
-4. Фильтры, мелочи UI, медиа удалённых.
+2. Название «AyuGram» и иконка (пользователь решил делать вместе с одной из первых фич).
+3. Фильтры, мелочи UI, медиа удалённых.
+4. Кнопка «Сохранить в галерею» для одноразовых медиа и Save/Forward для stories.
+5. Идея пользователя: бегущие слоны поверх чата (хромакей-мем, конвертировать в WebM VP9 с альфой и играть через пайплайн видео-стикеров; оверлей по образцу `ConfettiView`).
 
 ## Референсы (локальные shallow-клоны в `C:\ayu-ref`)
 

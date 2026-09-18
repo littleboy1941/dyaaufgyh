@@ -2383,6 +2383,9 @@ func peerInfoScreenData(
 }
 
 func peerInfoIsCopyProtected(data: PeerInfoScreenData) -> Bool {
+    if ayuSettingsSnapshot.ignoreCopyRestrictions {
+        return false
+    }
     var isCopyProtected = false
     if let cachedUserData = data.cachedData as? CachedUserData, cachedUserData.flags.contains(.copyProtectionEnabled) || cachedUserData.flags.contains(.myCopyProtectionEnabled) {
         isCopyProtected = true

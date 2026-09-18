@@ -759,7 +759,7 @@ final class PeerInfoScreenNode: ViewControllerTracingNode, PeerInfoScreenNodePro
                 }
                 
                 var isCopyProtected = false
-                if let cachedUserData = strongSelf.data?.cachedData as? CachedUserData, cachedUserData.flags.contains(.copyProtectionEnabled) || cachedUserData.flags.contains(.myCopyProtectionEnabled) {
+                if !ayuSettingsSnapshot.ignoreCopyRestrictions, let cachedUserData = strongSelf.data?.cachedData as? CachedUserData, cachedUserData.flags.contains(.copyProtectionEnabled) || cachedUserData.flags.contains(.myCopyProtectionEnabled) {
                     isCopyProtected = true
                 }
                 
@@ -921,7 +921,7 @@ final class PeerInfoScreenNode: ViewControllerTracingNode, PeerInfoScreenNodePro
                 }
                 if let previewData = previewData {
                     var isCopyProtected = false
-                    if let cachedUserData = strongSelf.data?.cachedData as? CachedUserData, cachedUserData.flags.contains(.copyProtectionEnabled) || cachedUserData.flags.contains(.myCopyProtectionEnabled) {
+                    if !ayuSettingsSnapshot.ignoreCopyRestrictions, let cachedUserData = strongSelf.data?.cachedData as? CachedUserData, cachedUserData.flags.contains(.copyProtectionEnabled) || cachedUserData.flags.contains(.myCopyProtectionEnabled) {
                         isCopyProtected = true
                     }
                     
