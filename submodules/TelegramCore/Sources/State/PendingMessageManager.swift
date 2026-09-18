@@ -1520,6 +1520,9 @@ public final class PendingMessageManager {
                 }
                 
                 return sendMessageRequest
+                |> beforeStarted { [weak self] in
+                    self?.ayuPushOfflineAfterSend()
+                }
                 |> deliverOn(queue)
                 |> mapToSignal { result -> Signal<Void, MTRpcError> in
                     if let strongSelf = self {
@@ -2202,6 +2205,9 @@ public final class PendingMessageManager {
                 }
                 
                 return sendMessageRequest
+                |> beforeStarted { [weak self] in
+                    self?.ayuPushOfflineAfterSend()
+                }
                 |> deliverOn(queue)
                 |> mapToSignal { result -> Signal<Void, MTRpcError> in
                     guard let strongSelf = self else {
@@ -2299,8 +2305,6 @@ public final class PendingMessageManager {
     }
     
     private func applySentMessage(postbox: Postbox, stateManager: AccountStateManager, message: Message, content: PendingMessageUploadedContentAndReuploadInfo, result: Api.Updates) -> Signal<Void, NoError> {
-        self.ayuPushOfflineAfterSend()
-        
         if let _ = message.peers[message.id.peerId] as? TelegramChannel {
             for attribute in message.attributes {
                 if let attribute = attribute as? PaidStarsMessageAttribute {
@@ -2365,8 +2369,9 @@ public final class PendingMessageManager {
     }
     
     // AyuGram ghost mode: sending marks us online on the server side, which suppressing the periodic online
-    // packet cannot prevent. Push an offline status right after so the exposure lasts a moment. Throttled,
-    // because an album reports each of its messages separately.
+    // packet cannot prevent. Fired as the send request goes out rather than after the server answers, so the
+    // two travel together and the exposure is not a whole round trip. Throttled, because an album sends its
+    // parts separately.
     private func ayuPushOfflineAfterSend() {
         guard ayuSettingsSnapshot.ghostGoesOfflineAfterSend else {
             return
@@ -2383,7 +2388,6 @@ public final class PendingMessageManager {
     }
 
     private func applySentGroupMessages(postbox: Postbox, stateManager: AccountStateManager, messages: [Message], result: Api.Updates) -> Signal<Void, NoError> {
-        self.ayuPushOfflineAfterSend()
         
         var namespace = Namespaces.Message.Cloud
         if let message = messages.first {
