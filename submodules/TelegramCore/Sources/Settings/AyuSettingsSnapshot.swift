@@ -16,11 +16,20 @@ import SwiftSignalKit
 // account's ghost setting therefore governs all of them. Fixing this means reading the setting per account
 // at each call site (most have a Transaction in reach, ManagedAccountPresence does not).
 private let ayuSettingsSnapshotValue = Atomic<AyuSettings>(value: AyuSettings.default)
+private let ayuSettingsSnapshotPromise = ValuePromise<AyuSettings>(AyuSettings.default, ignoreRepeated: true)
 
 public var ayuSettingsSnapshot: AyuSettings {
     return ayuSettingsSnapshotValue.with({ $0 })
 }
 
+// For code that has to react to a change rather than read the value at one moment. AccountPresenceManager
+// needs this: it only talks to the server when its inputs change, so without a signal, switching ghost mode
+// on would not take effect until the app was backgrounded or its 30 second refresh fired.
+public var ayuSettingsSnapshotSignal: Signal<AyuSettings, NoError> {
+    return ayuSettingsSnapshotPromise.get()
+}
+
 public func ayuSetSettingsSnapshot(_ settings: AyuSettings) {
     let _ = ayuSettingsSnapshotValue.swap(settings)
+    ayuSettingsSnapshotPromise.set(settings)
 }

@@ -22,12 +22,21 @@ private final class AccountPresenceManagerImpl {
         self.queue = queue
         self.network = network
         
-        self.shouldKeepOnlinePresenceDisposable = (shouldKeepOnlinePresence
+        // AyuGram ghost mode is an input here, not a check inside updatePresence: this manager only contacts
+        // the server when its inputs change, so turning the mode on has to push an offline status right away
+        // instead of waiting for the app to be backgrounded.
+        let ayuHidesOnline = ayuSettingsSnapshotSignal
+        |> map { settings -> Bool in
+            return settings.ghostHidesOnline
+        }
         |> distinctUntilChanged
-        |> deliverOn(self.queue)).start(next: { [weak self] value in
+        
+        self.shouldKeepOnlinePresenceDisposable = (combineLatest(shouldKeepOnlinePresence |> distinctUntilChanged, ayuHidesOnline)
+        |> deliverOn(self.queue)).start(next: { [weak self] shouldKeepOnline, hidesOnline in
             guard let `self` = self else {
                 return
             }
+            let value = shouldKeepOnline && !hidesOnline
             if self.wasOnline != value {
                 self.wasOnline = value
                 self.updatePresence(value)
