@@ -254,13 +254,13 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
             case .ignoreCopyRestrictions:
                 return 504
             case .disableAds:
-                return 901
+                return 511
             case .hideSimilarChannels:
-                return 902
+                return 512
             case .improveLinkPreviews:
-                return 1001
+                return 521
             case .showMessageSeconds:
-                return 1101
+                return 531
             case .ghostMode:
                 return 601
             case .ghostDontReadMessages:
@@ -297,15 +297,15 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
         case .restrictionsFooter:
             return 505
         case .adsHeader:
-            return 900
+            return 510
         case .adsFooter:
-            return 903
-        case .miscHeader:
-            return 1100
+            return 513
         case .linksHeader:
-            return 1000
+            return 520
         case .linksFooter:
-            return 1002
+            return 522
+        case .miscHeader:
+            return 530
         case .ghostHeader:
             return 600
         case .ghostFooter:
