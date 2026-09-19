@@ -23,10 +23,35 @@ private final class AccountPresenceManagerImpl {
     private var wasKeepingOnlinePresence: Bool = false
     private var wasHidingOnline: Bool = false
 
-    init(queue: Queue, shouldKeepOnlinePresence: Signal<Bool, NoError>, network: Network) {
+    private var ayuServerMarkedUsOnlineDisposable: Disposable?
+    private var ayuLastForcedOfflineTimestamp: Double = 0.0
+
+    init(queue: Queue, accountPeerId: PeerId, shouldKeepOnlinePresence: Signal<Bool, NoError>, network: Network) {
         self.queue = queue
         self.network = network
-        
+
+        // AyuGram ghost mode: suppressing our own presence packets leaves one hole open -- the server marks
+        // the account online by itself after meaningful actions and reports it back with an updateUserStatus
+        // about ourselves. Every such report is answered with an offline status, which is what keeps us dark
+        // while the app stays open. Without this the account only went dark when the app was closed.
+        self.ayuServerMarkedUsOnlineDisposable = (ayuServerMarkedUsOnlineSignal(accountPeerId: accountPeerId)
+        |> deliverOn(self.queue)).start(next: { [weak self] in
+            guard let `self` = self else {
+                return
+            }
+            if !ayuSettingsSnapshot.ghostHidesOnline {
+                return
+            }
+            // The server answers our offline status with another update, so a burst of activity must not turn
+            // into a request per update.
+            let timestamp = CFAbsoluteTimeGetCurrent()
+            if timestamp < self.ayuLastForcedOfflineTimestamp + 1.0 {
+                return
+            }
+            self.ayuLastForcedOfflineTimestamp = timestamp
+            self.updatePresence(false)
+        })
+
         // AyuGram ghost mode is an input here, not a check inside updatePresence: this manager only contacts
         // the server when its inputs change, so turning the mode on has to push an offline status right away
         // instead of waiting for the app to be backgrounded.
@@ -54,6 +79,7 @@ private final class AccountPresenceManagerImpl {
     deinit {
         assert(self.queue.isCurrent())
         self.shouldKeepOnlinePresenceDisposable?.dispose()
+        self.ayuServerMarkedUsOnlineDisposable?.dispose()
         self.currentRequestDisposable.dispose()
         self.onlineTimer?.invalidate()
     }
@@ -100,10 +126,10 @@ final class AccountPresenceManager {
     private let queue = Queue()
     private let impl: QueueLocalObject<AccountPresenceManagerImpl>
     
-    init(shouldKeepOnlinePresence: Signal<Bool, NoError>, network: Network) {
+    init(accountPeerId: PeerId, shouldKeepOnlinePresence: Signal<Bool, NoError>, network: Network) {
         let queue = self.queue
         self.impl = QueueLocalObject(queue: self.queue, generate: {
-            return AccountPresenceManagerImpl(queue: queue, shouldKeepOnlinePresence: shouldKeepOnlinePresence, network: network)
+            return AccountPresenceManagerImpl(queue: queue, accountPeerId: accountPeerId, shouldKeepOnlinePresence: shouldKeepOnlinePresence, network: network)
         })
     }
     

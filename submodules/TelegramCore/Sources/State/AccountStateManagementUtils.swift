@@ -4947,6 +4947,9 @@ func replayFinalState(
                             case let .userStatusOnline(userStatusOnlineData):
                                 let timestamp = userStatusOnlineData.expires
                                 delayNotificatonsUntil = timestamp + 30
+                                // AyuGram: the server lit us up on its own. This is the only place we learn
+                                // about it, since our own presence is never stored.
+                                ayuNoteServerMarkedUsOnline(accountPeerId: accountPeerId)
                             case let .userStatusOffline(userStatusOfflineData):
                                 let timestamp = userStatusOfflineData.wasOnline
                                 delayNotificatonsUntil = timestamp
