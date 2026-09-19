@@ -351,9 +351,7 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
         case .adsHeader:
             return ItemListSectionHeaderItem(presentationData: presentationData, text: "РЕКЛАМА И ЛИШНЕЕ", sectionId: self.section)
         case .adsFooter:
-            return ItemListTextItem(presentationData: presentationData, text: .plain("Спонсорские посты в каналах и в полноэкранном видео, спонсорские результаты в поиске и рекламная строка над списком чатов не запрашиваются у сервера и не показываются. Блок «похожие каналы» тоже скрывается.
-
-Уже показанные объявления исчезнут после переоткрытия чата."), sectionId: self.section)
+            return ItemListTextItem(presentationData: presentationData, text: .plain("Спонсорские посты в каналах и в полноэкранном видео, спонсорские результаты в поиске и рекламная строка над списком чатов не запрашиваются у сервера и не показываются. Блок «похожие каналы» тоже скрывается.\n\nУже показанные объявления исчезнут после переоткрытия чата."), sectionId: self.section)
         case .miscHeader:
             return ItemListSectionHeaderItem(presentationData: presentationData, text: "МЕЛОЧИ", sectionId: self.section)
         case .linksHeader:
