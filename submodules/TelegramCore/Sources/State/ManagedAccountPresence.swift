@@ -16,8 +16,13 @@ private final class AccountPresenceManagerImpl {
     private let currentRequestDisposable = MetaDisposable()
     private var onlineTimer: SignalKitTimer?
     
-    private var wasOnline: Bool = false
-    
+    // The raw inputs are tracked, never the value derived from them. With ghost mode on the derived value is
+    // permanently false, so comparing against it would make the subscription below stop calling updatePresence
+    // altogether -- and since the server marks us online on its own activity, nothing would ever push us back
+    // offline.
+    private var wasKeepingOnlinePresence: Bool = false
+    private var wasHidingOnline: Bool = false
+
     init(queue: Queue, shouldKeepOnlinePresence: Signal<Bool, NoError>, network: Network) {
         self.queue = queue
         self.network = network
@@ -36,10 +41,12 @@ private final class AccountPresenceManagerImpl {
             guard let `self` = self else {
                 return
             }
-            let value = shouldKeepOnline && !hidesOnline
-            if self.wasOnline != value {
-                self.wasOnline = value
-                self.updatePresence(value)
+            if self.wasKeepingOnlinePresence != shouldKeepOnline || self.wasHidingOnline != hidesOnline {
+                self.wasKeepingOnlinePresence = shouldKeepOnline
+                self.wasHidingOnline = hidesOnline
+                // updatePresence is the single place that applies ghost mode, so the raw value goes in and
+                // comes out as an offline status while the mode is on.
+                self.updatePresence(shouldKeepOnline)
             }
         })
     }
