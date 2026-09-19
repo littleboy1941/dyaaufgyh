@@ -1520,9 +1520,6 @@ public final class PendingMessageManager {
                 }
                 
                 return sendMessageRequest
-                |> beforeStarted { [weak self] in
-                    self?.ayuPushOfflineAfterSend()
-                }
                 |> deliverOn(queue)
                 |> mapToSignal { result -> Signal<Void, MTRpcError> in
                     if let strongSelf = self {
@@ -2205,9 +2202,6 @@ public final class PendingMessageManager {
                 }
                 
                 return sendMessageRequest
-                |> beforeStarted { [weak self] in
-                    self?.ayuPushOfflineAfterSend()
-                }
                 |> deliverOn(queue)
                 |> mapToSignal { result -> Signal<Void, MTRpcError> in
                     guard let strongSelf = self else {
@@ -2305,6 +2299,8 @@ public final class PendingMessageManager {
     }
     
     private func applySentMessage(postbox: Postbox, stateManager: AccountStateManager, message: Message, content: PendingMessageUploadedContentAndReuploadInfo, result: Api.Updates) -> Signal<Void, NoError> {
+        self.ayuPushOfflineAfterSend()
+
         if let _ = message.peers[message.id.peerId] as? TelegramChannel {
             for attribute in message.attributes {
                 if let attribute = attribute as? PaidStarsMessageAttribute {
@@ -2369,9 +2365,14 @@ public final class PendingMessageManager {
     }
     
     // AyuGram ghost mode: sending marks us online on the server side, which suppressing the periodic online
-    // packet cannot prevent. Fired as the send request goes out rather than after the server answers, so the
-    // two travel together and the exposure is not a whole round trip. Throttled, because an album sends its
-    // parts separately.
+    // packet cannot prevent.
+    //
+    // This MUST run after the server has answered the send. Firing it as the request goes out (which is what
+    // commit 1706b46c did, to shorten the exposure) puts the offline status BEFORE the thing that turns us
+    // online, so the server's own marking wins and we stay online until the app is closed. The round trip is
+    // the price of the correct order.
+    //
+    // Throttled, because an album sends its parts separately.
     private func ayuPushOfflineAfterSend() {
         guard ayuSettingsSnapshot.ghostGoesOfflineAfterSend else {
             return
@@ -2388,7 +2389,8 @@ public final class PendingMessageManager {
     }
 
     private func applySentGroupMessages(postbox: Postbox, stateManager: AccountStateManager, messages: [Message], result: Api.Updates) -> Signal<Void, NoError> {
-        
+        self.ayuPushOfflineAfterSend()
+
         var namespace = Namespaces.Message.Cloud
         if let message = messages.first {
             if let channel = message.peers[message.id.peerId] as? TelegramChannel, channel.isMonoForum {
