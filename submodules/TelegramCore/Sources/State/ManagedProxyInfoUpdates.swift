@@ -223,7 +223,10 @@ func _internal_fetchPromoInfo(accountPeerId: EnginePeer.Id, postbox: Postbox, ne
                 }
                 
                 var additionalChatListItems: [AdditionalChatListItem] = []
-                if let kind, let peer, let parsedPeer = transaction.getPeer(peer.peerId) {
+                // AyuGram: the promoted row pinned above the chat list (a proxy's sponsored channel, or a
+                // PSA) is dropped with ads. Only the row is dropped, not the request: the same response also
+                // carries the server's suggestions, which are not advertising.
+                if !ayuSettings(transaction: transaction).disableAds, let kind, let peer, let parsedPeer = transaction.getPeer(peer.peerId) {
                     additionalChatListItems.append(PromoChatListItem(peerId: parsedPeer.id, kind: kind))
                 }
                 transaction.replaceAdditionalChatListItems(additionalChatListItems)

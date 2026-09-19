@@ -30,6 +30,15 @@ public struct AyuSettings: Equatable, Codable {
     // Saving, copying and the Forward button are available in chats that restrict them
     public var ignoreCopyRestrictions: Bool = true
 
+    // Sponsored posts in channels and sponsored results in search are neither requested nor shown
+    public var disableAds: Bool = true
+    // The "similar channels" block is neither requested nor shown
+    public var hideSimilarChannels: Bool = true
+    // Message timestamps include seconds
+    public var showMessageSeconds: Bool = false
+    // Link previews are requested through a mirror host that renders them properly (x.com, Reddit, ...)
+    public var improveLinkPreviews: Bool = true
+
     // Ghost mode: the master switch. Every ghost* toggle below only applies while this is on, so the
     // individual choices survive turning the mode off and back on.
     public var ghostMode: Bool = false
@@ -64,6 +73,10 @@ public struct AyuSettings: Equatable, Codable {
         case dontNotifyScreenshots
         case dontNotifyScreenshotsInSecretChats
         case ignoreCopyRestrictions
+        case disableAds
+        case hideSimilarChannels
+        case showMessageSeconds
+        case improveLinkPreviews
         case ghostMode
         case ghostDontReadMessages
         case ghostDontReadMedia
@@ -90,6 +103,10 @@ public struct AyuSettings: Equatable, Codable {
         self.dontNotifyScreenshots = try container.decodeIfPresent(Bool.self, forKey: .dontNotifyScreenshots) ?? defaults.dontNotifyScreenshots
         self.dontNotifyScreenshotsInSecretChats = try container.decodeIfPresent(Bool.self, forKey: .dontNotifyScreenshotsInSecretChats) ?? defaults.dontNotifyScreenshotsInSecretChats
         self.ignoreCopyRestrictions = try container.decodeIfPresent(Bool.self, forKey: .ignoreCopyRestrictions) ?? defaults.ignoreCopyRestrictions
+        self.disableAds = try container.decodeIfPresent(Bool.self, forKey: .disableAds) ?? defaults.disableAds
+        self.hideSimilarChannels = try container.decodeIfPresent(Bool.self, forKey: .hideSimilarChannels) ?? defaults.hideSimilarChannels
+        self.showMessageSeconds = try container.decodeIfPresent(Bool.self, forKey: .showMessageSeconds) ?? defaults.showMessageSeconds
+        self.improveLinkPreviews = try container.decodeIfPresent(Bool.self, forKey: .improveLinkPreviews) ?? defaults.improveLinkPreviews
         self.ghostMode = try container.decodeIfPresent(Bool.self, forKey: .ghostMode) ?? defaults.ghostMode
         self.ghostDontReadMessages = try container.decodeIfPresent(Bool.self, forKey: .ghostDontReadMessages) ?? defaults.ghostDontReadMessages
         self.ghostDontReadMedia = try container.decodeIfPresent(Bool.self, forKey: .ghostDontReadMedia) ?? defaults.ghostDontReadMedia
@@ -114,6 +131,10 @@ public struct AyuSettings: Equatable, Codable {
         try container.encode(self.dontNotifyScreenshots, forKey: .dontNotifyScreenshots)
         try container.encode(self.dontNotifyScreenshotsInSecretChats, forKey: .dontNotifyScreenshotsInSecretChats)
         try container.encode(self.ignoreCopyRestrictions, forKey: .ignoreCopyRestrictions)
+        try container.encode(self.disableAds, forKey: .disableAds)
+        try container.encode(self.hideSimilarChannels, forKey: .hideSimilarChannels)
+        try container.encode(self.showMessageSeconds, forKey: .showMessageSeconds)
+        try container.encode(self.improveLinkPreviews, forKey: .improveLinkPreviews)
         try container.encode(self.ghostMode, forKey: .ghostMode)
         try container.encode(self.ghostDontReadMessages, forKey: .ghostDontReadMessages)
         try container.encode(self.ghostDontReadMedia, forKey: .ghostDontReadMedia)

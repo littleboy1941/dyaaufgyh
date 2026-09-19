@@ -41,6 +41,26 @@ public enum WebpagePreviewWithProgressResult {
 
 public func webpagePreviewWithProgress(account: Account, urls: [String], webpageId: MediaId? = nil, forPeerId: PeerId? = nil) -> Signal<WebpagePreviewWithProgressResult, NoError> {
     return account.postbox.transaction { transaction -> Signal<WebpagePreviewWithProgressResult, NoError> in
+        // AyuGram: the server is asked about a mirror host for sites whose preview is otherwise empty, and
+        // the original address is restored in sourceUrl so the composer still matches the link in the text.
+        let ayuSettingsValue = ayuSettings(transaction: transaction)
+        let requestUrls = urls.map { ayuBetterLinkPreviewUrl($0, settings: ayuSettingsValue) }
+        var ayuOriginalUrls: [String: String] = [:]
+        for (index, url) in urls.enumerated() where requestUrls[index] != url {
+            ayuOriginalUrls[requestUrls[index]] = url
+        }
+        let ayuSourceUrl: (String) -> String = { url in
+            if let original = ayuOriginalUrls[url] {
+                return original
+            }
+            // The server echoes back its own normalised form of the address, which no longer matches the
+            // string we sent. With a single rewritten link there is only one address it can belong to.
+            if urls.count == 1, ayuOriginalUrls.count == 1, let original = ayuOriginalUrls.values.first {
+                return original
+            }
+            return url
+        }
+
         if let webpageId = webpageId, let webpage = transaction.getMedia(webpageId) as? TelegramMediaWebpage, let url = webpage.content.url {
             var sourceUrl = url
             if urls.count == 1 {
@@ -151,7 +171,7 @@ public func webpagePreviewWithProgress(account: Account, urls: [String], webpage
                 }
             }
             
-            return account.network.requestWithAdditionalInfo(Api.functions.messages.getWebPagePreview(flags: 0, message: urls.joined(separator: " "), entities: nil), info: .progress)
+            return account.network.requestWithAdditionalInfo(Api.functions.messages.getWebPagePreview(flags: 0, message: requestUrls.joined(separator: " "), entities: nil), info: .progress)
             |> `catch` { _ -> Signal<NetworkRequestResult<Api.messages.WebPagePreview>, NoError> in
                 return .single(.result(.webPagePreview(.init(media: .messageMediaEmpty, chats: [], users: []))))
             }
@@ -183,15 +203,15 @@ public func webpagePreviewWithProgress(account: Account, urls: [String], webpage
                                 
                                 if let media = telegramMediaWebpageFromApiWebpage(webpage), let url = media.content.url {
                                     if case .Loaded = media.content {
-                                        return .single(.result(WebpagePreviewResult.Result(webpage: media, sourceUrl: url)))
+                                        return .single(.result(WebpagePreviewResult.Result(webpage: media, sourceUrl: ayuSourceUrl(url))))
                                     } else {
-                                        return .single(.result(WebpagePreviewResult.Result(webpage: media, sourceUrl: url)))
+                                        return .single(.result(WebpagePreviewResult.Result(webpage: media, sourceUrl: ayuSourceUrl(url))))
                                         |> then(
                                             account.stateManager.updatedWebpage(media.webpageId)
                                             |> take(1)
                                             |> map { next -> WebpagePreviewWithProgressResult in
                                                 if let url = next.content.url {
-                                                    return .result(WebpagePreviewResult.Result(webpage: next, sourceUrl: url))
+                                                    return .result(WebpagePreviewResult.Result(webpage: next, sourceUrl: ayuSourceUrl(url)))
                                                 } else {
                                                     return .result(nil)
                                                 }

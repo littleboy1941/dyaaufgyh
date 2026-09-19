@@ -39,6 +39,19 @@ public class AdPeer: Equatable {
 }
 
 func _internal_searchAdPeers(account: Account, query: String) -> Signal<[AdPeer], NoError> {
+    // AyuGram: sponsored search results are not requested at all while ads are disabled.
+    return account.postbox.transaction { transaction -> Bool in
+        return ayuSettings(transaction: transaction).disableAds
+    }
+    |> mapToSignal { disableAds -> Signal<[AdPeer], NoError> in
+        if disableAds {
+            return .single([])
+        }
+        return _internal_searchAdPeersRequest(account: account, query: query)
+    }
+}
+
+private func _internal_searchAdPeersRequest(account: Account, query: String) -> Signal<[AdPeer], NoError> {
     return account.network.request(Api.functions.contacts.getSponsoredPeers(q: query))
     |> map(Optional.init)
     |> `catch` { _ in

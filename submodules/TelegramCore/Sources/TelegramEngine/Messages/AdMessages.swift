@@ -456,6 +456,11 @@ private class AdMessagesHistoryContextImpl {
             |> mapToSignal { cachedState -> Signal<State, NoError> in
                 if let cachedState = cachedState, cachedState.timestamp >= Int32(Date().timeIntervalSince1970) - 5 * 60 {
                     return account.postbox.transaction { transaction -> State in
+                        // AyuGram: ads cached by an earlier fetch (up to five minutes old) must not resurface
+                        // after the setting is turned on.
+                        if ayuSettings(transaction: transaction).disableAds {
+                            return State(interPostInterval: nil, messages: [])
+                        }
                         return State(interPostInterval: cachedState.interPostInterval, messages: cachedState.messages.compactMap { message -> Message? in
                             return message.toMessage(peerId: peerId, transaction: transaction)
                         })
@@ -488,6 +493,11 @@ private class AdMessagesHistoryContextImpl {
         let messageId = self.messageId
         
         let signal: Signal<(interPostInterval: Int32?, startDelay: Int32?, betweenDelay: Int32?, messages: [Message]), NoError> = account.postbox.transaction { transaction -> Api.InputPeer? in
+            // AyuGram: with ads disabled the request is not sent at all. A nil peer is the path the rest of
+            // this signal already handles as "no sponsored messages", so nothing downstream has to change.
+            if ayuSettings(transaction: transaction).disableAds {
+                return nil
+            }
             return transaction.getPeer(peerId).flatMap(apiInputPeer)
         }
         |> mapToSignal { inputPeer -> Signal<(interPostInterval: Int32?, startDelay: Int32?, betweenDelay: Int32?, messages: [Message]), NoError> in

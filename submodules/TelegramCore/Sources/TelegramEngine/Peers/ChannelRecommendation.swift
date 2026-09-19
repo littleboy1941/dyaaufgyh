@@ -54,6 +54,10 @@ private func appsEntryId() -> ItemCacheEntryId {
 
 func _internal_requestRecommendedChannels(account: Account, peerId: EnginePeer.Id?, forceUpdate: Bool) -> Signal<Never, NoError> {
     return account.postbox.transaction { transaction -> (Peer?, Bool) in
+        // AyuGram: nothing is fetched while the "similar channels" block is hidden.
+        if ayuSettings(transaction: transaction).hideSimilarChannels {
+            return (nil, false)
+        }
         if let peerId {
             guard let channel = transaction.getPeer(peerId) as? TelegramChannel, case .broadcast = channel.info else {
                 return (nil, false)
@@ -237,6 +241,19 @@ func _internal_recommendedAppPeerIds(account: Account) -> Signal<[EnginePeer.Id]
 }
 
 func _internal_recommendedChannels(account: Account, peerId: EnginePeer.Id?) -> Signal<RecommendedChannels?, NoError> {
+    // AyuGram: channels cached by an earlier fetch must not resurface after the setting is turned on.
+    return account.postbox.transaction { transaction -> Bool in
+        return ayuSettings(transaction: transaction).hideSimilarChannels
+    }
+    |> mapToSignal { hideSimilarChannels -> Signal<RecommendedChannels?, NoError> in
+        if hideSimilarChannels {
+            return .single(nil)
+        }
+        return _internal_recommendedChannelsFromCache(account: account, peerId: peerId)
+    }
+}
+
+private func _internal_recommendedChannelsFromCache(account: Account, peerId: EnginePeer.Id?) -> Signal<RecommendedChannels?, NoError> {
     let key = PostboxViewKey.cachedItem(entryId(peerId: peerId))
     return account.postbox.combinedView(keys: [key])
     |> mapToSignal { views -> Signal<RecommendedChannels?, NoError> in

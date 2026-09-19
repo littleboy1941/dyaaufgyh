@@ -31,6 +31,10 @@ private enum AyuSettingsToggle: Int32 {
     case dontNotifyScreenshots
     case dontNotifyScreenshotsInSecretChats
     case ignoreCopyRestrictions
+    case disableAds
+    case hideSimilarChannels
+    case improveLinkPreviews
+    case showMessageSeconds
     case ghostMode
     case ghostDontReadMessages
     case ghostDontReadMedia
@@ -66,6 +70,14 @@ private enum AyuSettingsToggle: Int32 {
             return \.dontNotifyScreenshotsInSecretChats
         case .ignoreCopyRestrictions:
             return \.ignoreCopyRestrictions
+        case .disableAds:
+            return \.disableAds
+        case .hideSimilarChannels:
+            return \.hideSimilarChannels
+        case .improveLinkPreviews:
+            return \.improveLinkPreviews
+        case .showMessageSeconds:
+            return \.showMessageSeconds
         case .ghostMode:
             return \.ghostMode
         case .ghostDontReadMessages:
@@ -111,6 +123,14 @@ private enum AyuSettingsToggle: Int32 {
             return "Не уведомлять в секретных чатах"
         case .ignoreCopyRestrictions:
             return "Игнорировать запрет пересылки"
+        case .disableAds:
+            return "Убрать рекламу"
+        case .hideSimilarChannels:
+            return "Скрыть похожие каналы"
+        case .improveLinkPreviews:
+            return "Улучшать превью ссылок"
+        case .showMessageSeconds:
+            return "Секунды у времени сообщений"
         case .ghostMode:
             return "Режим призрака"
         case .ghostDontReadMessages:
@@ -137,6 +157,9 @@ private enum AyuSettingsSection: Int32 {
     case edits
     case selfDestructing
     case restrictions
+    case ads
+    case links
+    case misc
     case ghost
     case ghostOptions
 }
@@ -152,6 +175,11 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
     case selfDestructingFooter
     case restrictionsHeader
     case restrictionsFooter
+    case adsHeader
+    case adsFooter
+    case linksHeader
+    case linksFooter
+    case miscHeader
     case ghostHeader
     case ghostFooter
     case ghostOptionsFooter
@@ -170,6 +198,12 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
                 return AyuSettingsSection.selfDestructing.rawValue
             case .allowScreenCapture, .dontNotifyScreenshots, .dontNotifyScreenshotsInSecretChats, .ignoreCopyRestrictions:
                 return AyuSettingsSection.restrictions.rawValue
+            case .disableAds, .hideSimilarChannels:
+                return AyuSettingsSection.ads.rawValue
+            case .improveLinkPreviews:
+                return AyuSettingsSection.links.rawValue
+            case .showMessageSeconds:
+                return AyuSettingsSection.misc.rawValue
             case .ghostMode:
                 return AyuSettingsSection.ghost.rawValue
             case .ghostDontReadMessages, .ghostDontReadMedia, .ghostDontCountViews, .ghostDontReadStories, .ghostDontSendTyping, .ghostDontSendOnline, .ghostOfflineAfterSend:
@@ -185,6 +219,12 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
             return AyuSettingsSection.selfDestructing.rawValue
         case .restrictionsHeader, .restrictionsFooter:
             return AyuSettingsSection.restrictions.rawValue
+        case .adsHeader, .adsFooter:
+            return AyuSettingsSection.ads.rawValue
+        case .linksHeader, .linksFooter:
+            return AyuSettingsSection.links.rawValue
+        case .miscHeader:
+            return AyuSettingsSection.misc.rawValue
         case .ghostHeader, .ghostFooter:
             return AyuSettingsSection.ghost.rawValue
         case .ghostOptionsFooter:
@@ -213,6 +253,14 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
                 return 503
             case .ignoreCopyRestrictions:
                 return 504
+            case .disableAds:
+                return 901
+            case .hideSimilarChannels:
+                return 902
+            case .improveLinkPreviews:
+                return 1001
+            case .showMessageSeconds:
+                return 1101
             case .ghostMode:
                 return 601
             case .ghostDontReadMessages:
@@ -248,6 +296,16 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
             return 500
         case .restrictionsFooter:
             return 505
+        case .adsHeader:
+            return 900
+        case .adsFooter:
+            return 903
+        case .miscHeader:
+            return 1100
+        case .linksHeader:
+            return 1000
+        case .linksFooter:
+            return 1002
         case .ghostHeader:
             return 600
         case .ghostFooter:
@@ -290,6 +348,18 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
             return ItemListSectionHeaderItem(presentationData: presentationData, text: "СНЯТИЕ ОГРАНИЧЕНИЙ", sectionId: self.section)
         case .restrictionsFooter:
             return ItemListTextItem(presentationData: presentationData, text: .plain("Скриншоты и запись экрана больше не затемняются, а собеседник не получает уведомление о скриншоте. В чатах с запретом пересылки снова доступны сохранение, копирование и «Переслать» — но сама пересылка на сервере всё равно будет отклонена.\n\nУведомление в секретных чатах собеседник обычно ожидает, поэтому этот пункт выключен по умолчанию. Новые значения применяются к заново открытым чатам."), sectionId: self.section)
+        case .adsHeader:
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: "РЕКЛАМА И ЛИШНЕЕ", sectionId: self.section)
+        case .adsFooter:
+            return ItemListTextItem(presentationData: presentationData, text: .plain("Спонсорские посты в каналах и в полноэкранном видео, спонсорские результаты в поиске и рекламная строка над списком чатов не запрашиваются у сервера и не показываются. Блок «похожие каналы» тоже скрывается.
+
+Уже показанные объявления исчезнут после переоткрытия чата."), sectionId: self.section)
+        case .miscHeader:
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: "МЕЛОЧИ", sectionId: self.section)
+        case .linksHeader:
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: "ССЫЛКИ", sectionId: self.section)
+        case .linksFooter:
+            return ItemListTextItem(presentationData: presentationData, text: .plain("Telegram не умеет разворачивать превью для x.com, Reddit, TikTok, Instagram и Pixiv. Превью запрашивается через зеркало (fixupx.com, vxreddit.com и подобные), поэтому картинка и текст появляются и у вас, и у собеседника. Текст самого сообщения не меняется: адрес остаётся тот, который вы написали."), sectionId: self.section)
         case .scopeFooter:
             return ItemListTextItem(presentationData: presentationData, text: .plain("Медиа удалённых сообщений не стирается ни ручной очисткой кэша, ни автоудалением по сроку хранения. Исключение — лимит размера кэша: при нём старые файлы могут удалиться."), sectionId: self.section)
         }
@@ -325,6 +395,19 @@ private func ayuSettingsEntries(settings: AyuSettings) -> [AyuSettingsEntry] {
         entries.append(.toggle(toggle, settings[keyPath: toggle.keyPath]))
     }
     entries.append(.restrictionsFooter)
+
+    entries.append(.adsHeader)
+    for toggle in [AyuSettingsToggle.disableAds, .hideSimilarChannels] {
+        entries.append(.toggle(toggle, settings[keyPath: toggle.keyPath]))
+    }
+    entries.append(.adsFooter)
+
+    entries.append(.linksHeader)
+    entries.append(.toggle(.improveLinkPreviews, settings.improveLinkPreviews))
+    entries.append(.linksFooter)
+
+    entries.append(.miscHeader)
+    entries.append(.toggle(.showMessageSeconds, settings.showMessageSeconds))
 
     entries.append(.ghostHeader)
     entries.append(.toggle(.ghostMode, settings.ghostMode))
