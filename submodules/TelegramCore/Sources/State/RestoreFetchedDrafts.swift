@@ -29,7 +29,7 @@ func _internal_synchronizeableChatInputState(accountPeerId: PeerId, peerId: Peer
                     quote = EngineMessageReplyQuote(
                         text: quoteText,
                         offset: quoteOffset.flatMap(Int.init),
-                        entities: messageTextEntitiesFromApiEntities(quoteEntities ?? [], ayuText: quoteText ?? ""),
+                        entities: messageTextEntitiesFromApiEntities(quoteEntities ?? [], ayuText: quoteText),
                         media: nil
                     )
                 }
