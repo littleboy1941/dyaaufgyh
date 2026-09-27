@@ -55,6 +55,7 @@ import ChatSendAsContextMenu
 import ShareWithPeersScreen
 import AlertComponent
 import ShareController
+import SaveToCameraRoll
 
 private var ObjCKey_DeinitWatcher: Int?
 
@@ -101,6 +102,7 @@ final class StoryItemSetContainerSendMessage: @unchecked(Sendable) {
     let enqueueMediaMessageDisposable = MetaDisposable()
     let navigationActionDisposable = MetaDisposable()
     let resolvePeerByNameDisposable = MetaDisposable()
+    private let ayuStoryShareDisposable = MetaDisposable()
 
     var currentSpeechHolder: SpeechSynthesizerHolder?
 
@@ -135,6 +137,7 @@ final class StoryItemSetContainerSendMessage: @unchecked(Sendable) {
         self.enqueueMediaMessageDisposable.dispose()
         self.navigationActionDisposable.dispose()
         self.resolvePeerByNameDisposable.dispose()
+        self.ayuStoryShareDisposable.dispose()
         self.inputMediaNodeDataDisposable?.dispose()
         self.currentTooltipUpdateTimer?.invalidate()
         self.sendAsDisposable?.dispose()
@@ -1270,6 +1273,17 @@ final class StoryItemSetContainerSendMessage: @unchecked(Sendable) {
             return
         }
 
+        // Ayu: a story reference would still be rejected or inaccessible to recipients.
+        // Download protected/nonpublic stories and upload a fresh local photo/video instead.
+        var ayuRestrictedChannel = false
+        if case let .channel(channel) = component.slice.effectivePeer {
+            ayuRestrictedChannel = channel.addressName == nil || channel.flags.contains(.copyProtectionEnabled)
+        }
+        if ayuSettingsSnapshot.ignoreCopyRestrictions && (focusedItem.storyItem.isForwardingDisabled || !focusedItem.storyItem.isPublic || ayuRestrictedChannel) {
+            self.ayuShareStoryMedia(view: view)
+            return
+        }
+
         if focusedItem.storyItem.isForwardingDisabled {
             let presentationData = component.context.sharedContext.currentPresentationData.with({ $0 }).withUpdated(theme: component.theme)
             let actionSheet = ActionSheetController(presentationData: presentationData)
@@ -1420,6 +1434,114 @@ final class StoryItemSetContainerSendMessage: @unchecked(Sendable) {
 
             controller.present(shareController, in: .window(.root))
         }
+    }
+
+    private func ayuShareStoryMedia(view: StoryItemSetContainerComponent.View) {
+        guard ayuSettingsSnapshot.ignoreCopyRestrictions,
+              let component = view.component, let controller = component.controller(),
+              let peerReference = PeerReference(component.slice.effectivePeer),
+              !component.slice.item.storyItem.isPending else {
+            return
+        }
+        let ayuStory = component.slice.item.storyItem
+        switch ayuStory.media {
+        case .image, .file:
+            break
+        default:
+            return
+        }
+        let ayuMedia = ayuStory.media._asMedia()
+        let ayuSourceResource: TelegramMediaResource
+        if let image = ayuMedia as? TelegramMediaImage, let representation = largestImageRepresentation(image.representations) {
+            ayuSourceResource = representation.resource
+        } else if let file = ayuMedia as? TelegramMediaFile, file.isVideo {
+            ayuSourceResource = file.resource
+        } else {
+            return
+        }
+        let ayuReference: AnyMediaReference = .story(peer: peerReference, id: ayuStory.id, media: ayuMedia)
+        let ayuProgressController = OverlayStatusController(theme: component.theme, type: .loading(cancelled: { [weak self] in
+            self?.ayuStoryShareDisposable.set(nil)
+        }))
+        self.statusController = ayuProgressController
+        view.updateIsProgressPaused()
+        controller.present(ayuProgressController, in: .window(.root))
+
+        let ayuSignal = fetchMediaData(context: component.context, userLocation: .peer(peerReference.id), customUserContentType: .story, mediaReference: ayuReference)
+        |> filter { state, _ in
+            if case let .data(data) = state {
+                return data.isComplete
+            }
+            return false
+        }
+        |> take(1)
+        |> deliverOn(Queue.concurrentDefaultQueue())
+        |> map { _, _ -> AnyMediaReference? in
+            let ayuResource = LocalFileMediaResource(fileId: Int64.random(in: Int64.min ... Int64.max), size: ayuSourceResource.size)
+            component.context.engine.resources.copyResourceData(from: EngineMediaResource.Id(ayuSourceResource.id), to: EngineMediaResource.Id(ayuResource.id), synchronous: true)
+            guard component.context.engine.resources.completedResourcePath(id: EngineMediaResource.Id(ayuResource.id)) != nil else {
+                return nil
+            }
+            if let image = ayuMedia as? TelegramMediaImage, let representation = largestImageRepresentation(image.representations) {
+                let ayuRepresentation = TelegramMediaImageRepresentation(dimensions: representation.dimensions, resource: ayuResource, progressiveSizes: [], immediateThumbnailData: representation.immediateThumbnailData)
+                return .standalone(media: TelegramMediaImage(imageId: EngineMedia.Id(namespace: Namespaces.Media.LocalImage, id: Int64.random(in: Int64.min ... Int64.max)), representations: [ayuRepresentation], immediateThumbnailData: image.immediateThumbnailData, reference: nil, partialReference: nil, flags: []))
+            } else if let file = ayuMedia as? TelegramMediaFile {
+                // Ayu: use only cached thumbnails copied to local resources; remote
+                // thumbnails can no longer be fetched once the source story expires.
+                var ayuPreviews: [TelegramMediaImageRepresentation] = []
+                for preview in file.previewRepresentations {
+                    guard component.context.engine.resources.completedResourcePath(id: EngineMediaResource.Id(preview.resource.id)) != nil else {
+                        continue
+                    }
+                    let ayuPreviewResource = LocalFileMediaResource(fileId: Int64.random(in: Int64.min ... Int64.max), size: preview.resource.size)
+                    component.context.engine.resources.copyResourceData(from: EngineMediaResource.Id(preview.resource.id), to: EngineMediaResource.Id(ayuPreviewResource.id), synchronous: true)
+                    if component.context.engine.resources.completedResourcePath(id: EngineMediaResource.Id(ayuPreviewResource.id)) != nil {
+                        ayuPreviews.append(TelegramMediaImageRepresentation(dimensions: preview.dimensions, resource: ayuPreviewResource, progressiveSizes: [], immediateThumbnailData: preview.immediateThumbnailData))
+                        break
+                    }
+                }
+                // No remote document id, partial reference, cover or alternative files:
+                // the sending pipeline uploads local resources rather than reusing the story.
+                return .standalone(media: TelegramMediaFile(fileId: EngineMedia.Id(namespace: Namespaces.Media.LocalFile, id: Int64.random(in: Int64.min ... Int64.max)), partialReference: nil, resource: ayuResource, previewRepresentations: ayuPreviews, videoThumbnails: [], immediateThumbnailData: file.immediateThumbnailData, mimeType: file.mimeType, size: file.size, attributes: file.attributes, alternativeRepresentations: []))
+            }
+            return nil
+        }
+        |> deliverOnMainQueue
+        |> afterDisposed { [weak self, weak view, weak ayuProgressController] in
+            Queue.mainQueue().async {
+                ayuProgressController?.dismiss()
+                if self?.statusController === ayuProgressController {
+                    self?.statusController = nil
+                }
+                view?.updateIsProgressPaused()
+            }
+        }
+        self.ayuStoryShareDisposable.set(ayuSignal.start(next: { [weak self, weak view] reference in
+            guard let self, let view, let currentComponent = view.component,
+                  currentComponent.slice.effectivePeer.id == peerReference.id,
+                  currentComponent.slice.item.storyItem.id == ayuStory.id else {
+                return
+            }
+            guard let reference else {
+                let presentationData = component.context.sharedContext.currentPresentationData.with { $0 }.withUpdated(theme: component.theme)
+                controller.present(standardTextAlertController(theme: AlertControllerTheme(presentationData: presentationData), title: nil, text: "Не удалось подготовить историю к пересылке.", actions: [TextAlertAction(type: .defaultAction, title: component.strings.Common_OK, action: {})]), in: .window(.root))
+                return
+            }
+            let ayuShareController = component.context.sharedContext.makeShareController(context: component.context, params: ShareControllerParams(
+                subject: .media(reference, nil),
+                presetText: ayuStory.text,
+                externalShare: true,
+                immediateExternalShare: false,
+                forceTheme: defaultDarkColorPresentationTheme,
+                dismissed: { [weak self, weak view] _ in
+                    self?.shareController = nil
+                    view?.updateIsProgressPaused()
+                }
+            ))
+            self.shareController = ayuShareController
+            view.updateIsProgressPaused()
+            controller.present(ayuShareController, in: .window(.root))
+        }))
     }
 
     func performPaidMessageAction(view: StoryItemSetContainerComponent.View, minStars: Int? = nil) {

@@ -347,7 +347,7 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
         case .restrictionsHeader:
             return ItemListSectionHeaderItem(presentationData: presentationData, text: "СНЯТИЕ ОГРАНИЧЕНИЙ", sectionId: self.section)
         case .restrictionsFooter:
-            return ItemListTextItem(presentationData: presentationData, text: .plain("Скриншоты и запись экрана больше не затемняются, а собеседник не получает уведомление о скриншоте. В чатах с запретом пересылки снова доступны сохранение, копирование и «Переслать» — но сама пересылка на сервере всё равно будет отклонена.\n\nУведомление в секретных чатах собеседник обычно ожидает, поэтому этот пункт выключен по умолчанию. Новые значения применяются к заново открытым чатам."), sectionId: self.section)
+            return ItemListTextItem(presentationData: presentationData, text: .plain("Скриншоты и запись экрана больше не затемняются, а собеседник не получает уведомление о скриншоте. В чатах с запретом пересылки доступны сохранение и копирование; обычную пересылку сообщений сервер всё ещё может отклонить. Для историй доступны сохранение в галерею без Premium и пересылка защищённых или непубличных историй как копии фото/видео. Кнопка сохранения одноразовых фото/видео появляется в просмотрщике, если включено их сохранение.\n\nУведомление в секретных чатах собеседник обычно ожидает, поэтому этот пункт выключен по умолчанию. Новые значения применяются к заново открытым чатам."), sectionId: self.section)
         case .adsHeader:
             return ItemListSectionHeaderItem(presentationData: presentationData, text: "РЕКЛАМА И ЛИШНЕЕ", sectionId: self.section)
         case .adsFooter:

@@ -513,6 +513,9 @@ public final class SaveProgressScreen: ViewController {
     private var dismissTimer: SwiftSignalKit.Timer?
             
     public var cancelled: () -> Void = {}
+
+    // Ayu: let media exporters release their subscriptions and resume story playback.
+    public var ayuDismissed: (() -> Void)?
     
     public init(context: AccountContext, content: SaveProgressScreenComponent.Content) {
         self.context = context
@@ -537,6 +540,13 @@ public final class SaveProgressScreen: ViewController {
         super.displayNodeDidLoad()
     }
     
+    override public func dismiss(completion: (() -> Void)? = nil) {
+        let ayuDismissed = self.ayuDismissed
+        self.ayuDismissed = nil
+        super.dismiss(completion: completion)
+        ayuDismissed?()
+    }
+
     fileprivate func cancel() {
         self.cancelled()
         

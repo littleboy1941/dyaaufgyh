@@ -13,6 +13,8 @@ import AppBundle
 import LocalizedPeerData
 import TooltipUI
 import TelegramNotices
+import SaveToCameraRoll
+import SaveProgressScreen
 
 private func galleryMediaForMedia(media: Media) -> Media? {
     if let media = media as? TelegramMediaImage {
@@ -156,6 +158,8 @@ public final class SecretMediaPreviewController: ViewController {
     
     private let disposable = MetaDisposable()
     private let markMessageAsConsumedDisposable = MetaDisposable()
+    private let ayuSaveDisposable = MetaDisposable()
+    private weak var ayuSaveScreen: SaveProgressScreen?
     
     private var controllerNode: SecretMediaPreviewControllerNode {
         return self.displayNode as! SecretMediaPreviewControllerNode
@@ -210,6 +214,12 @@ public final class SecretMediaPreviewController: ViewController {
             }
         })
         
+        self.centralItemAttributesDisposable.add(ayuSettingsSnapshotSignal.start(next: { [weak self] _ in
+            Queue.mainQueue().async {
+                self?.ayuUpdateSaveButton()
+            }
+        }))
+
         self.centralItemAttributesDisposable.add(self.footerContentNode.get().start(next: { [weak self] footerContentNode, _ in
             guard let self else {
                 return
@@ -227,6 +237,7 @@ public final class SecretMediaPreviewController: ViewController {
     deinit {
         self.disposable.dispose()
         self.markMessageAsConsumedDisposable.dispose()
+        self.ayuSaveDisposable.dispose()
         if let hiddenMediaManagerIndex = self.hiddenMediaManagerIndex {
             self.context.sharedContext.mediaManager.galleryHiddenMediaManager.removeSource(hiddenMediaManagerIndex)
         }
@@ -505,6 +516,7 @@ public final class SecretMediaPreviewController: ViewController {
     }
     
     private func applyMessageView() {
+        self.ayuUpdateSaveButton()
         var message: Message?
         if let messageView = self.messageView, let m = messageView.message {
             message = m
@@ -604,6 +616,73 @@ public final class SecretMediaPreviewController: ViewController {
         }
     }
     
+    // Ayu: exporting applies only to preserved incoming cloud photos/videos.
+    // Secret-chat media and the ordinary disappearing-media mode retain their UI.
+    private func ayuMediaForSaving() -> AnyMediaReference? {
+        let ayuSettings = ayuSettingsSnapshot
+        guard ayuSettings.keepSelfDestructingMedia, ayuSettings.ignoreCopyRestrictions,
+              let message = self.messageView?.message,
+              message.flags.contains(.Incoming),
+              message.id.namespace == Namespaces.Message.Cloud,
+              message.id.peerId.namespace != Namespaces.Peer.SecretChat,
+              message.containsSecretMedia,
+              !message.media.contains(where: { $0 is TelegramMediaExpiredContent }),
+              let media = mediaForMessage(message: message),
+              media is TelegramMediaImage || (media as? TelegramMediaFile)?.isVideo == true else {
+            return nil
+        }
+        return .message(message: MessageReference(message), media: media)
+    }
+
+    private func ayuUpdateSaveButton() {
+        if self.ayuMediaForSaving() != nil {
+            if self.navigationItem.rightBarButtonItem == nil {
+                self.navigationItem.rightBarButtonItem = UIBarButtonItem(title: self.presentationData.strings.Common_Save, style: .plain, target: self, action: #selector(self.ayuSavePressed))
+            }
+            self.navigationItem.rightBarButtonItem?.isEnabled = self.ayuSaveScreen == nil
+        } else {
+            self.navigationItem.rightBarButtonItem = nil
+        }
+    }
+
+    @objc private func ayuSavePressed() {
+        guard self.ayuSaveScreen == nil, let mediaReference = self.ayuMediaForSaving() else {
+            return
+        }
+        let ayuSaveScreen = SaveProgressScreen(context: self.context, content: .progress(self.presentationData.strings.Story_TooltipSaving, 0.0))
+        self.ayuSaveScreen = ayuSaveScreen
+        self.ayuUpdateSaveButton()
+        ayuSaveScreen.ayuDismissed = { [weak self] in
+            guard let self else {
+                return
+            }
+            self.ayuSaveScreen = nil
+            self.ayuSaveDisposable.set(nil)
+            self.ayuUpdateSaveButton()
+        }
+        ayuSaveScreen.cancelled = { [weak self] in
+            self?.ayuSaveDisposable.set(nil)
+        }
+        self.present(ayuSaveScreen, in: .current)
+        self.ayuSaveDisposable.set((ayuSaveToCameraRoll(context: self.context, userLocation: .peer(self.messageId.peerId), mediaReference: mediaReference)
+        |> deliverOnMainQueue).start(next: { [weak self, weak ayuSaveScreen] progress in
+            guard let self else {
+                return
+            }
+            ayuSaveScreen?.content = .progress(self.presentationData.strings.Story_TooltipSaving, progress)
+        }, error: { [weak self, weak ayuSaveScreen] error in
+            ayuSaveScreen?.dismiss()
+            if case .saveFailed = error, let self {
+                self.present(standardTextAlertController(theme: AlertControllerTheme(presentationData: self.presentationData), title: nil, text: "Не удалось сохранить медиа в галерею.", actions: [TextAlertAction(type: .defaultAction, title: self.presentationData.strings.Common_OK, action: {})]), in: .window(.root))
+            }
+        }, completed: { [weak self, weak ayuSaveScreen] in
+            guard let self else {
+                return
+            }
+            ayuSaveScreen?.content = .completion(self.presentationData.strings.Story_TooltipSaved)
+        }))
+    }
+
     private func dismissAllTooltips() {
         if let tooltipController = self.tooltipController {
             self.tooltipController = nil

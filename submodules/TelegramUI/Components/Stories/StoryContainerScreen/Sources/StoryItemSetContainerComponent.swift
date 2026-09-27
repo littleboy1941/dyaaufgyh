@@ -750,6 +750,7 @@ public final class StoryItemSetContainerComponent: Component {
             self.audioRecorderStatusDisposable?.dispose()
             self.videoRecorderDisposable?.dispose()
             self.updateDisposable.dispose()
+            self.ayuSaveDisposable.dispose()
         }
         
         public var mediaStreamCall: PresentationGroupCall? {
@@ -1794,7 +1795,10 @@ public final class StoryItemSetContainerComponent: Component {
                         if case .liveStream = component.slice.item.storyItem.media {
                             displayFooter = false
                         }
-                        if component.slice.item.storyItem.isForwardingDisabled {
+                        // Ayu: protected/private stories can be shared as downloaded media.
+                        if ayuSettingsSnapshot.ignoreCopyRestrictions {
+                            canShare = !component.slice.item.storyItem.isPending
+                        } else if component.slice.item.storyItem.isForwardingDisabled {
                             canShare = false
                         }
                         
@@ -3237,7 +3241,7 @@ public final class StoryItemSetContainerComponent: Component {
                             }
                         },
                         timeoutAction: nil,
-                        forwardAction: (!isLiveStream && component.slice.item.storyItem.isPublic && !component.slice.item.storyItem.isForwardingDisabled) ? { [weak self] in
+                        forwardAction: (!isLiveStream && !component.slice.item.storyItem.isPending && (ayuSettingsSnapshot.ignoreCopyRestrictions || (component.slice.item.storyItem.isPublic && !component.slice.item.storyItem.isForwardingDisabled))) ? { [weak self] in
                             guard let self else {
                                 return
                             }
@@ -5727,6 +5731,8 @@ public final class StoryItemSetContainerComponent: Component {
         }
         
         private let updateDisposable = MetaDisposable()
+        private let ayuSaveDisposable = MetaDisposable()
+        private weak var ayuSaveScreen: SaveProgressScreen?
         func openStoryEditing(repost: Bool = false, cover: Bool = false) {
             guard let component = self.component else {
                 return
@@ -5966,37 +5972,54 @@ public final class StoryItemSetContainerComponent: Component {
         }
         
         private func requestSave() {
-            guard let component = self.component, let peerReference = PeerReference(component.slice.effectivePeer) else {
+            guard self.ayuSaveScreen == nil, let component = self.component,
+                  let ayuController = component.controller(),
+                  !component.slice.item.storyItem.isPending,
+                  let peerReference = PeerReference(component.slice.effectivePeer) else {
                 return
             }
-            
-            let saveScreen = SaveProgressScreen(context: component.context, content: .progress(component.strings.Story_TooltipSaving, 0.0))
-            component.controller()?.present(saveScreen, in: .current)
-            
-            let stringSaving = component.strings.Story_TooltipSaving
-            let stringSaved = component.strings.Story_TooltipSaved
-            
-            let disposable = (saveToCameraRoll(context: component.context, userLocation: .peer(peerReference.id), customUserContentType: .story, mediaReference: .story(peer: peerReference, id: component.slice.item.storyItem.id, media: component.slice.item.storyItem.media._asMedia()))
-            |> deliverOnMainQueue).start(next: { [weak saveScreen] progress in
-                guard let saveScreen else {
-                    return
-                }
-                saveScreen.content = .progress(stringSaving, progress)
-            }, completed: { [weak saveScreen] in
-                guard let saveScreen else {
-                    return
-                }
-                saveScreen.content = .completion(stringSaved)
-                Queue.mainQueue().after(3.0, { [weak saveScreen] in
-                    saveScreen?.dismiss()
-                })
-            })
-            
-            saveScreen.cancelled = {
-                disposable.dispose()
+            switch component.slice.item.storyItem.media {
+            case .image, .file:
+                break
+            default:
+                return
             }
+
+            let ayuSaveScreen = SaveProgressScreen(context: component.context, content: .progress(component.strings.Story_TooltipSaving, 0.0))
+            self.ayuSaveScreen = ayuSaveScreen
+            self.sendMessageContext.statusController = ayuSaveScreen
+            self.updateIsProgressPaused()
+            ayuSaveScreen.ayuDismissed = { [weak self, weak ayuSaveScreen] in
+                guard let self else {
+                    return
+                }
+                self.ayuSaveScreen = nil
+                self.ayuSaveDisposable.set(nil)
+                if self.sendMessageContext.statusController === ayuSaveScreen {
+                    self.sendMessageContext.statusController = nil
+                }
+                self.updateIsProgressPaused()
+            }
+            ayuSaveScreen.cancelled = { [weak self] in
+                self?.ayuSaveDisposable.set(nil)
+            }
+            ayuController.present(ayuSaveScreen, in: .current)
+
+            let ayuReference: AnyMediaReference = .story(peer: peerReference, id: component.slice.item.storyItem.id, media: component.slice.item.storyItem.media._asMedia())
+            self.ayuSaveDisposable.set((ayuSaveToCameraRoll(context: component.context, userLocation: .peer(peerReference.id), customUserContentType: .story, mediaReference: ayuReference)
+            |> deliverOnMainQueue).start(next: { [weak ayuSaveScreen] progress in
+                ayuSaveScreen?.content = .progress(component.strings.Story_TooltipSaving, progress)
+            }, error: { [weak ayuSaveScreen] error in
+                ayuSaveScreen?.dismiss()
+                if case .saveFailed = error {
+                    let presentationData = component.context.sharedContext.currentPresentationData.with { $0 }.withUpdated(theme: component.theme)
+                    component.presentController(standardTextAlertController(theme: AlertControllerTheme(presentationData: presentationData), title: nil, text: "Не удалось сохранить медиа в галерею.", actions: [TextAlertAction(type: .defaultAction, title: component.strings.Common_OK, action: {})]), nil)
+                }
+            }, completed: { [weak ayuSaveScreen] in
+                ayuSaveScreen?.content = .completion(component.strings.Story_TooltipSaved)
+            }))
         }
-        
+
         private func performMoreAction(sourceView: UIView, gesture: ContextGesture?) {
             if self.isAnimatingOut {
                 return
@@ -7421,10 +7444,10 @@ public final class StoryItemSetContainerComponent: Component {
                             }
                             self.beginPictureInPicture()
                         })))
-                    } else if !component.slice.item.storyItem.isForwardingDisabled {
+                    } else if !component.slice.item.storyItem.isPending && (ayuSettingsSnapshot.ignoreCopyRestrictions || !component.slice.item.storyItem.isForwardingDisabled) {
                         let saveText: String = component.strings.Story_Context_SaveToGallery
                         items.append(.action(ContextMenuActionItem(text: saveText, icon: { theme in
-                            return generateTintedImage(image: UIImage(bundleImageName: accountUser.isPremium ? "Chat/Context Menu/Download" : "Chat/Context Menu/DownloadLocked"), color: theme.contextMenu.primaryColor)
+                            return generateTintedImage(image: UIImage(bundleImageName: (accountUser.isPremium || ayuSettingsSnapshot.ignoreCopyRestrictions) ? "Chat/Context Menu/Download" : "Chat/Context Menu/DownloadLocked"), color: theme.contextMenu.primaryColor)
                         }, action: { [weak self] _, a in
                             a(.default)
                             
@@ -7432,7 +7455,7 @@ public final class StoryItemSetContainerComponent: Component {
                                 return
                             }
                             
-                            if accountUser.isPremium {
+                            if accountUser.isPremium || ayuSettingsSnapshot.ignoreCopyRestrictions {
                                 self.requestSave()
                             } else {
                                 self.presentSaveUpgradeScreen()
@@ -7440,6 +7463,19 @@ public final class StoryItemSetContainerComponent: Component {
                         })))
                     }
                     
+                    // Ayu: also expose sharing in the menu for private/protected stories.
+                    if !isLiveStream && !component.slice.item.storyItem.isPending && (ayuSettingsSnapshot.ignoreCopyRestrictions || (component.slice.item.storyItem.isPublic && !component.slice.item.storyItem.isForwardingDisabled)) {
+                        items.append(.action(ContextMenuActionItem(text: component.strings.Story_Context_Share, icon: { theme in
+                            return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Forward"), color: theme.contextMenu.primaryColor)
+                        }, action: { [weak self] _, action in
+                            action(.default)
+                            guard let self else {
+                                return
+                            }
+                            self.sendMessageContext.performShareAction(view: self)
+                        })))
+                    }
+
                     if case .user = component.slice.effectivePeer, !isLiveStream {
                         items.append(.action(ContextMenuActionItem(text: component.strings.Story_ContextStealthMode, icon: { theme in
                             return generateTintedImage(image: UIImage(bundleImageName: accountUser.isPremium ? "Chat/Context Menu/Eye" : "Chat/Context Menu/EyeLocked"), color: theme.contextMenu.primaryColor)
