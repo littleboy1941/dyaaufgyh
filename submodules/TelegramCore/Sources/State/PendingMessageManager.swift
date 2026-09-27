@@ -1396,7 +1396,7 @@ public final class PendingMessageManager {
                                     var messageEntities: [Api.MessageEntity]?
                                     for attribute in message.attributes {
                                         if let attribute = attribute as? TextEntitiesMessageAttribute {
-                                            messageEntities = apiTextAttributeEntities(attribute, associatedPeers: message.peers)
+                                            messageEntities = apiEntitiesFromMessageTextEntities(ayuOutgoingEmojiEntities(transaction: transaction, accountPeerId: accountPeerId, peerId: message.id.peerId, text: message.text, entities: attribute.entities), associatedPeers: message.peers)
                                         }
                                     }
                                     
@@ -1778,7 +1778,7 @@ public final class PendingMessageManager {
                     } else if let attribute = attribute as? ForwardSourceInfoAttribute {
                         forwardSourceInfoAttribute = attribute
                     } else if let attribute = attribute as? TextEntitiesMessageAttribute {
-                        messageEntities = apiTextAttributeEntities(attribute, associatedPeers: message.peers)
+                        messageEntities = apiEntitiesFromMessageTextEntities(ayuOutgoingEmojiEntities(transaction: transaction, accountPeerId: accountPeerId, peerId: message.id.peerId, text: message.text, entities: attribute.entities), associatedPeers: message.peers)
                     } else if let attribute = attribute as? OutgoingContentInfoMessageAttribute {
                         if attribute.flags.contains(.disableLinkPreviews) {
                             flags |= Int32(1 << 1)

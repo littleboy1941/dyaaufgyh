@@ -164,6 +164,18 @@ public final class ChatEntityKeyboardInputNode: ChatInputNode {
         return hasPremium
     }
 
+    // Ayu: local entitlement is scoped to emoji insertion, not premium stickers or server limits.
+    fileprivate static func ayuHasPremiumForEmoji(context: AccountContext, chatPeerId: EnginePeer.Id?, premiumIfSavedMessages: Bool) -> Signal<Bool, NoError> {
+        return combineLatest(
+            hasPremium(context: context, chatPeerId: chatPeerId, premiumIfSavedMessages: premiumIfSavedMessages),
+            context.engine.data.subscribe(TelegramEngine.EngineData.Item.Configuration.Ayu())
+        )
+        |> map { hasPremium, settings in
+            return hasPremium || (settings.localPremium && chatPeerId?.namespace != Namespaces.Peer.SecretChat)
+        }
+        |> distinctUntilChanged
+    }
+
     public static func inputData(
         context: AccountContext,
         chatPeerId: PeerId?,
@@ -194,6 +206,7 @@ public final class ChatEntityKeyboardInputNode: ChatInputNode {
             chatPeerId: chatPeerId,
             hasSearch: hasSearch,
             forceHasPremium: forceHasPremium,
+            ayuAllowLocalPremium: chatPeerId?.namespace != Namespaces.Peer.SecretChat,
             hideBackground: hideBackground,
             maskEdge: maskEdge
         )
@@ -652,8 +665,8 @@ public final class ChatEntityKeyboardInputNode: ChatInputNode {
             performItemAction: { [weak self, weak interaction] groupId, item, _, _, _, _ in
                 let _ = (
                 combineLatest(
-                    ChatEntityKeyboardInputNode.hasPremium(context: context, chatPeerId: chatPeerId, premiumIfSavedMessages: true),
-                    ChatEntityKeyboardInputNode.hasPremium(context: context, chatPeerId: chatPeerId, premiumIfSavedMessages: false)
+                    ChatEntityKeyboardInputNode.ayuHasPremiumForEmoji(context: context, chatPeerId: chatPeerId, premiumIfSavedMessages: true),
+                    ChatEntityKeyboardInputNode.ayuHasPremiumForEmoji(context: context, chatPeerId: chatPeerId, premiumIfSavedMessages: false)
                 )
                 |> take(1)
                 |> deliverOnMainQueue).start(next: { hasPremium, hasGlobalPremium in
@@ -947,14 +960,7 @@ public final class ChatEntityKeyboardInputNode: ChatInputNode {
                             }
                         }
 
-                        let hasPremium = context.engine.data.subscribe(TelegramEngine.EngineData.Item.Peer.Peer(id: context.account.peerId))
-                        |> map { peer -> Bool in
-                            guard case let .user(user) = peer else {
-                                return false
-                            }
-                            return user.isPremium
-                        }
-                        |> distinctUntilChanged
+                        let hasPremium = ChatEntityKeyboardInputNode.ayuHasPremiumForEmoji(context: context, chatPeerId: chatPeerId, premiumIfSavedMessages: true)
 
                         let resultSignal = combineLatest(
                             signal,
@@ -1275,7 +1281,7 @@ public final class ChatEntityKeyboardInputNode: ChatInputNode {
                             }
                         })
                     } else {
-                        if file.isPremiumSticker && !hasPremium {
+                        if file.isPremiumSticker && !hasPremium && !context.ayuLocalPremium {
                             let controller = PremiumIntroScreen(context: context, source: .stickers)
                             interaction.getNavigationController()?.pushViewController(controller)
 
@@ -2450,7 +2456,7 @@ public final class EntityInputView: UIInputView, LegacyMessageInputPanelInputVie
                 if forceHasPremium {
                     hasPremium = .single(true)
                 } else {
-                    hasPremium = ChatEntityKeyboardInputNode.hasPremium(context: context, chatPeerId: nil, premiumIfSavedMessages: false) |> take(1) |> deliverOnMainQueue
+                    hasPremium = ChatEntityKeyboardInputNode.ayuHasPremiumForEmoji(context: context, chatPeerId: nil, premiumIfSavedMessages: false) |> take(1) |> deliverOnMainQueue
                 }
                 let _ = hasPremium.start(next: { hasPremium in
                     guard let strongSelf = self else {
@@ -2596,7 +2602,8 @@ public final class EntityInputView: UIInputView, LegacyMessageInputPanelInputVie
             areUnicodeEmojiEnabled: true,
             areCustomEmojiEnabled: areCustomEmojiEnabled,
             chatPeerId: nil,
-            forceHasPremium: forceHasPremium
+            forceHasPremium: forceHasPremium,
+            ayuAllowLocalPremium: true
         ).start(next: { value in
             emojiComponent = value
             semaphore.signal()
@@ -2624,6 +2631,7 @@ public final class EntityInputView: UIInputView, LegacyMessageInputPanelInputVie
                     areCustomEmojiEnabled: areCustomEmojiEnabled,
                     chatPeerId: nil,
                     forceHasPremium: forceHasPremium,
+                    ayuAllowLocalPremium: true,
                     hideBackground: hideBackground
                 ) |> map { emojiComponent -> ChatEntityKeyboardInputNode.InputData in
                     return ChatEntityKeyboardInputNode.InputData(
@@ -2865,15 +2873,12 @@ public final class EmojiContentPeekBehaviorImpl: EmojiContentPeekBehavior {
                 let chatPeerId = strongSelf.chatPeerId
 
                 if file.isCustomEmoji {
-                    return context.engine.data.get(TelegramEngine.EngineData.Item.Peer.Peer(id: accountPeerId)) |> map { peer -> Bool in
-                        var hasPremium = false
-                        if case let .user(user) = peer, user.isPremium {
-                            hasPremium = true
-                        }
-                        return hasPremium
-                    }
+                    return combineLatest(
+                        ChatEntityKeyboardInputNode.ayuHasPremiumForEmoji(context: context, chatPeerId: chatPeerId, premiumIfSavedMessages: true),
+                        ChatEntityKeyboardInputNode.hasPremium(context: context, chatPeerId: nil, premiumIfSavedMessages: false)
+                    ) |> take(1)
                     |> deliverOnMainQueue
-                    |> map { [weak itemLayer] hasPremium -> (UIView, CGRect, PeekControllerContent)? in
+                    |> map { [weak itemLayer] hasPremium, ayuRealPremium -> (UIView, CGRect, PeekControllerContent)? in
                         guard let strongSelf = self, let itemLayer = itemLayer else {
                             return nil
                         }
@@ -2927,7 +2932,7 @@ public final class EmojiContentPeekBehaviorImpl: EmojiContentPeekBehavior {
                                         return
                                     }
 
-                                    if hasPremium {
+                                    if ayuRealPremium || context.ayuLocalPremium {
                                         setStatus(file)
                                     } else {
                                         var replaceImpl: ((ViewController) -> Void)?
@@ -2981,7 +2986,7 @@ public final class EmojiContentPeekBehaviorImpl: EmojiContentPeekBehavior {
                             if case let .user(user) = peer, user.isPremium {
                                 hasPremium = true
                             }
-                            return hasPremium
+                            return hasPremium || context.ayuLocalPremium
                         },
                         sendPaidMessageStars
                     )

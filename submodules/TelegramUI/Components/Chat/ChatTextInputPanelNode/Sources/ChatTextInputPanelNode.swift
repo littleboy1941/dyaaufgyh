@@ -4103,7 +4103,7 @@ public class ChatTextInputPanelNode: ChatInputPanelNode, ASEditableTextNodeDeleg
                                 self.dismissedEmojiSuggestionPosition = nil
                                 
                                 if beginRequest {
-                                    suggestionContext.disposable.set((EmojiSuggestionsComponent.suggestionData(context: context, isSavedMessages: self.presentationInterfaceState?.chatLocation.peerId == self.context?.account.peerId, query: String(lastCharacter))
+                                    suggestionContext.disposable.set((EmojiSuggestionsComponent.suggestionData(context: context, isSavedMessages: self.presentationInterfaceState?.chatLocation.peerId == self.context?.account.peerId, query: String(lastCharacter), ayuAllowLocalPremium: self.presentationInterfaceState?.chatLocation.peerId?.namespace != Namespaces.Peer.SecretChat)
                                     |> deliverOnMainQueue).startStrict(next: { [weak self, weak suggestionContext] result in
                                         guard let strongSelf = self, let suggestionContext = suggestionContext, strongSelf.currentEmojiSuggestion === suggestionContext else {
                                             return
@@ -4379,13 +4379,12 @@ public class ChatTextInputPanelNode: ChatInputPanelNode, ASEditableTextNodeDeleg
         let _ = context
         let _ = accountPeerId
         
-        return context.engine.data.get(TelegramEngine.EngineData.Item.Peer.Peer(id: accountPeerId))
-        |> map { peer -> Bool in
-            var hasPremium = false
-            if case let .user(user) = peer, user.isPremium {
-                hasPremium = true
-            }
-            return hasPremium
+        return context.engine.data.get(
+            TelegramEngine.EngineData.Item.Peer.Peer(id: accountPeerId),
+            TelegramEngine.EngineData.Item.Configuration.Ayu()
+        )
+        |> map { peer, ayuSettings -> Bool in
+            return (peer?.isPremium ?? false) || ayuSettings.localPremium
         }
         |> deliverOnMainQueue
         |> map { [weak self, weak itemLayer] hasPremium -> (UIView, CGRect, PeekControllerContent)? in

@@ -162,7 +162,7 @@ public extension TelegramEngine {
             }
             |> ignoreValues
             
-            return self.account.postbox.transaction { transaction -> Void in
+            return self.account.postbox.transaction { transaction -> Bool in
                 if let file = file {
                     transaction.storeMediaIfNotPresent(media: file)
                     
@@ -172,14 +172,26 @@ public extension TelegramEngine {
                     }
                 }
                 
+                var ayuApplyLocally = false
                 if let peer = transaction.getPeer(peerId) as? TelegramUser {
+                    var ayu = ayuSettings(transaction: transaction)
+                    if ayu.localPremium, !peer.flags.contains(.isPremium) {
+                        var profile = ayu.ayuLocalProfile ?? AyuLocalProfile(user: peer)
+                        profile.hasStatus = true
+                        profile.emojiStatus = file.map { PeerEmojiStatus(content: .emoji(fileId: $0.fileId.id), expirationDate: expirationDate) }
+                        ayu.ayuLocalProfile = profile
+                        transaction.updatePreferencesEntry(key: PreferencesKeys.ayuSettings, { _ in PreferencesEntry(ayu) })
+                        ayuApplyLocally = true
+                    }
                     updatePeersCustom(transaction: transaction, peers: [peer.withUpdatedEmojiStatus(file.flatMap({ PeerEmojiStatus(content: .emoji(fileId: $0.fileId.id), expirationDate: expirationDate) }))], update: { _, updated in
                         updated
                     })
                 }
+                return ayuApplyLocally
             }
-            |> ignoreValues
-            |> then(remoteApply)
+            |> mapToSignal { ayuApplyLocally -> Signal<Never, NoError> in
+                return ayuApplyLocally ? .complete() : remoteApply
+            }
         }
         
         public func updateAccountBusinessHours(businessHours: TelegramBusinessHours?) -> Signal<Never, NoError> {

@@ -60,12 +60,14 @@ public final class StoryContentContextImpl: StoryContentContext {
                 }
                 |> distinctUntilChanged,
                 context.engine.data.subscribe(
-                    TelegramEngine.EngineData.Item.Peer.Peer(id: context.account.peerId)
+                    TelegramEngine.EngineData.Item.Peer.Peer(id: context.account.peerId),
+                    TelegramEngine.EngineData.Item.Configuration.Ayu()
                 )
             )
-            |> map { setting, peer -> Bool in
+            |> map { setting, data -> Bool in
+                let (peer, ayu) = data
                 let isPremium = peer?.isPremium ?? false
-                return setting && isPremium
+                return setting && (isPremium || ayu.localPremium)
             }
             |> distinctUntilChanged
             
@@ -1186,12 +1188,14 @@ public final class SingleStoryContentContextImpl: StoryContentContext {
             }
             |> distinctUntilChanged,
             context.engine.data.subscribe(
-                TelegramEngine.EngineData.Item.Peer.Peer(id: context.account.peerId)
+                TelegramEngine.EngineData.Item.Peer.Peer(id: context.account.peerId),
+                TelegramEngine.EngineData.Item.Configuration.Ayu()
             )
         )
-        |> map { setting, peer -> Bool in
+        |> map { setting, data -> Bool in
+            let (peer, ayu) = data
             let isPremium = peer?.isPremium ?? false
-            return setting && isPremium
+            return setting && (isPremium || ayu.localPremium)
         }
         |> distinctUntilChanged
         
@@ -1513,12 +1517,14 @@ public final class PeerStoryListContentContextImpl: StoryContentContext {
             }
             |> distinctUntilChanged,
             context.engine.data.subscribe(
-                TelegramEngine.EngineData.Item.Peer.Peer(id: context.account.peerId)
+                TelegramEngine.EngineData.Item.Peer.Peer(id: context.account.peerId),
+                TelegramEngine.EngineData.Item.Configuration.Ayu()
             )
         )
-        |> map { setting, peer -> Bool in
+        |> map { setting, data -> Bool in
+            let (peer, ayu) = data
             let isPremium = peer?.isPremium ?? false
-            return setting && isPremium
+            return setting && (isPremium || ayu.localPremium)
         }
         |> distinctUntilChanged
         
@@ -2008,12 +2014,14 @@ public func waitUntilStoryMediaPreloaded(context: AccountContext, peerId: Engine
         }
         |> distinctUntilChanged,
         context.engine.data.subscribe(
-            TelegramEngine.EngineData.Item.Peer.Peer(id: context.account.peerId)
+            TelegramEngine.EngineData.Item.Peer.Peer(id: context.account.peerId),
+            TelegramEngine.EngineData.Item.Configuration.Ayu()
         )
     )
-    |> map { setting, peer -> Bool in
+    |> map { setting, data -> Bool in
+        let (peer, ayu) = data
         let isPremium = peer?.isPremium ?? false
-        return setting && isPremium
+        return setting && (isPremium || ayu.localPremium)
     }
     |> distinctUntilChanged
     
@@ -2373,12 +2381,14 @@ public final class RepostStoriesContentContextImpl: StoryContentContext {
                 }
                 |> distinctUntilChanged,
                 context.engine.data.subscribe(
-                    TelegramEngine.EngineData.Item.Peer.Peer(id: context.account.peerId)
+                    TelegramEngine.EngineData.Item.Peer.Peer(id: context.account.peerId),
+                    TelegramEngine.EngineData.Item.Configuration.Ayu()
                 )
             )
-            |> map { setting, peer -> Bool in
+            |> map { setting, data -> Bool in
+                let (peer, ayu) = data
                 let isPremium = peer?.isPremium ?? false
-                return setting && isPremium
+                return setting && (isPremium || ayu.localPremium)
             }
             |> distinctUntilChanged
             

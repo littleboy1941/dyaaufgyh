@@ -43,6 +43,7 @@ private enum AyuSettingsToggle: Int32 {
     case ghostDontSendTyping
     case ghostDontSendOnline
     case ghostOfflineAfterSend
+    case localPremium
 
     var keyPath: WritableKeyPath<AyuSettings, Bool> {
         switch self {
@@ -78,6 +79,8 @@ private enum AyuSettingsToggle: Int32 {
             return \.improveLinkPreviews
         case .showMessageSeconds:
             return \.showMessageSeconds
+        case .localPremium:
+            return \.localPremium
         case .ghostMode:
             return \.ghostMode
         case .ghostDontReadMessages:
@@ -131,6 +134,8 @@ private enum AyuSettingsToggle: Int32 {
             return "Улучшать превью ссылок"
         case .showMessageSeconds:
             return "Секунды у времени сообщений"
+        case .localPremium:
+            return "Локальный Premium"
         case .ghostMode:
             return "Режим призрака"
         case .ghostDontReadMessages:
@@ -162,6 +167,7 @@ private enum AyuSettingsSection: Int32 {
     case misc
     case ghost
     case ghostOptions
+    case premium
 }
 
 private enum AyuSettingsEntry: ItemListNodeEntry {
@@ -183,6 +189,8 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
     case ghostHeader
     case ghostFooter
     case ghostOptionsFooter
+    case premiumHeader
+    case premiumFooter
 
     var section: ItemListSectionId {
         switch self {
@@ -204,6 +212,8 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
                 return AyuSettingsSection.links.rawValue
             case .showMessageSeconds:
                 return AyuSettingsSection.misc.rawValue
+            case .localPremium:
+                return AyuSettingsSection.premium.rawValue
             case .ghostMode:
                 return AyuSettingsSection.ghost.rawValue
             case .ghostDontReadMessages, .ghostDontReadMedia, .ghostDontCountViews, .ghostDontReadStories, .ghostDontSendTyping, .ghostDontSendOnline, .ghostOfflineAfterSend:
@@ -227,6 +237,8 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
             return AyuSettingsSection.misc.rawValue
         case .ghostHeader, .ghostFooter:
             return AyuSettingsSection.ghost.rawValue
+        case .premiumHeader, .premiumFooter:
+            return AyuSettingsSection.premium.rawValue
         case .ghostOptionsFooter:
             return AyuSettingsSection.ghostOptions.rawValue
         }
@@ -261,6 +273,8 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
                 return 521
             case .showMessageSeconds:
                 return 531
+            case .localPremium:
+                return 901
             case .ghostMode:
                 return 601
             case .ghostDontReadMessages:
@@ -310,6 +324,10 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
             return 600
         case .ghostFooter:
             return 602
+        case .premiumHeader:
+            return 900
+        case .premiumFooter:
+            return 902
         case .ghostOptionsFooter:
             return 800
         }
@@ -322,6 +340,10 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
     func item(presentationData: ItemListPresentationData, arguments: Any) -> ListViewItem {
         let arguments = arguments as! AyuSettingsControllerArguments
         switch self {
+        case .premiumHeader:
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: "ЛОКАЛЬНЫЙ PREMIUM", sectionId: self.section)
+        case .premiumFooter:
+            return ItemListTextItem(presentationData: presentationData, text: .plain("Открывает кастомные эмодзи, Premium-стикеры, доступные иконки, четвёртый аккаунт, перемещение «Все чаты», перевод чатов, историю стикеров и выбор HD для stories. Цвета, эмодзи-статус и теги «Избранного» видны только на этом устройстве. Обычный Telegram получает кастомные эмодзи как Unicode со ссылкой. Подписка, серверные права и лимиты не меняются. Для HD нужна доступная версия видео; перевод зависит от сервиса. Настройка действует для этого аккаунта."), sectionId: self.section)
         case .deletedHeader:
             return ItemListSectionHeaderItem(presentationData: presentationData, text: "УДАЛЁННЫЕ СООБЩЕНИЯ", sectionId: self.section)
         case let .toggle(toggle, value):
@@ -418,6 +440,10 @@ private func ayuSettingsEntries(settings: AyuSettings) -> [AyuSettingsEntry] {
         }
         entries.append(.ghostOptionsFooter)
     }
+
+    entries.append(.premiumHeader)
+    entries.append(.toggle(.localPremium, settings.localPremium))
+    entries.append(.premiumFooter)
 
     return entries
 }

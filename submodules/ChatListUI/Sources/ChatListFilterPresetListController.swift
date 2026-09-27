@@ -787,7 +787,7 @@ public func chatListFilterPresetListController(context: AccountContext, mode: Ch
         )
         |> deliverOnMainQueue).start(next: { order, peer in
             let isPremium = peer?.isPremium ?? false
-            if !isPremium, let order = order, order.first != 0 {
+            if !isPremium && !context.ayuLocalPremium, let order = order, order.first != 0 {
                 updatedFilterOrder.set(.single(previousOrder))
 
                 let presentationData = context.sharedContext.currentPresentationData.with { $0 }

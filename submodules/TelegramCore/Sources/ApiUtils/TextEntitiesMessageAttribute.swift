@@ -53,6 +53,10 @@ func apiEntitiesFromMessageTextEntities(_ entities: [MessageTextEntity], associa
         case .Spoiler:
             apiEntities.append(.messageEntitySpoiler(.init(offset: offset, length: length)))
         case let .CustomEmoji(_, fileId):
+            // Ayu: paired render entities are local; send only their original emoji link.
+            if ayuLocalPremiumEmojiHasMarker(entity, entities: entities) {
+                continue
+            }
             apiEntities.append(.messageEntityCustomEmoji(.init(offset: offset, length: length, documentId: fileId)))
         case let .FormattedDate(format, date):
             var flags: Int32 = 0

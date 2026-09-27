@@ -23,6 +23,7 @@ func addMessageMediaResourceIdsToRemove(message: Message, resourceIds: inout [Me
 }
 
 public func _internal_deleteMessages(transaction: Transaction, mediaBox: MediaBox, ids: [MessageId], deleteMedia: Bool = true, manualAddMessageThreadStatsDifference: ((MessageThreadKey, Int, Int) -> Void)? = nil) {
+    ayuRemoveLocalSavedTags(transaction: transaction, ids: ids)
     var resourceIds: [MediaResourceId] = []
     if deleteMedia {
         for id in ids {
@@ -274,6 +275,7 @@ func _internal_deleteReaction(account: Account, messageId: MessageId, authorId: 
 }
 
 func _internal_clearHistory(transaction: Transaction, mediaBox: MediaBox, peerId: PeerId, threadId: Int64?, namespaces: MessageIdNamespaces) {
+    ayuRemoveLocalSavedTagsForHistory(transaction: transaction, peerId: peerId, threadId: threadId, namespaces: namespaces)
     if peerId.namespace == Namespaces.Peer.SecretChat {
         var resourceIds: [MediaResourceId] = []
         transaction.withAllMessages(peerId: peerId, { message in
@@ -289,6 +291,7 @@ func _internal_clearHistory(transaction: Transaction, mediaBox: MediaBox, peerId
 }
 
 func _internal_clearHistoryInRange(transaction: Transaction, mediaBox: MediaBox, peerId: PeerId, threadId: Int64?, minTimestamp: Int32, maxTimestamp: Int32, namespaces: MessageIdNamespaces) {
+    ayuRemoveLocalSavedTagsForHistory(transaction: transaction, peerId: peerId, threadId: threadId, namespaces: namespaces, minTimestamp: minTimestamp, maxTimestamp: maxTimestamp)
     if peerId.namespace == Namespaces.Peer.SecretChat {
         var resourceIds: [MediaResourceId] = []
         transaction.withAllMessages(peerId: peerId, { message in

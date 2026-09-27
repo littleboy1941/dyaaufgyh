@@ -33,6 +33,14 @@ private func managedRecentMedia(postbox: Postbox, network: Network, collectionId
                     }
 
                     return postbox.transaction { transaction -> Void in
+                        // Ayu: the cloud returns a bounded recent list; preserve older local stickers.
+                        if collectionId == Namespaces.OrderedItemList.CloudRecentStickers, ayuSettings(transaction: transaction).localPremium {
+                            for item in transaction.getOrderedListItems(collectionId: collectionId) {
+                                if existingIds.insert(item.id.makeData()).inserted {
+                                    items.append(item)
+                                }
+                            }
+                        }
                         transaction.replaceOrderedItemListItems(collectionId: collectionId, items: items)
                     }
                 } else {

@@ -220,13 +220,13 @@ extension PeerInfoScreenNode {
                     return
                 }
                 var maximumAvailableAccounts: Int = 3
-                if accountAndPeer?.1.isPremium == true && !strongSelf.context.account.testingEnvironment {
+                if (accountAndPeer?.1.isPremium == true || strongSelf.context.ayuLocalPremium) && !strongSelf.context.account.testingEnvironment {
                     maximumAvailableAccounts = 4
                 }
                 var count: Int = 1
                 for (accountContext, peer, _) in accountsAndPeers {
                     if !accountContext.account.testingEnvironment {
-                        if peer.isPremium {
+                        if peer.isPremium || accountContext.ayuLocalPremium {
                             maximumAvailableAccounts = 4
                         }
                         count += 1

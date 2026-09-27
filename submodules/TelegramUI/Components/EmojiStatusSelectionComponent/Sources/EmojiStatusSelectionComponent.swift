@@ -515,7 +515,7 @@ public final class EmojiStatusSelectionController: ViewController {
                                     guard case let .user(user) = peer else {
                                         return false
                                     }
-                                    return user.isPremium
+                                    return user.isPremium || context.ayuLocalPremium
                                 }
                                 |> distinctUntilChanged
 

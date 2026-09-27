@@ -966,7 +966,7 @@ extension ChatControllerImpl {
                                     let peerSpecificEmojiPack = (strongSelf.contentData?.state.peerView?.cachedData as? CachedChannelData)?.emojiPack
                                     let content = chatInputContent(fromDocument: document, media: media, emojiFiles: emojiFiles)
                                     let inputText = trimChatInputText(entityPreservingFallbackAttributedString(from: content, preserveCustomEmoji: { _, file in
-                                        if strongSelf.context.isPremium {
+                                        if strongSelf.context.isPremium || strongSelf.ayuLocalPremium {
                                             return true
                                         }
                                         guard let file else {

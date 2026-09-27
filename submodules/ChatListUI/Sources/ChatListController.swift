@@ -2109,12 +2109,14 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
                 }
                 |> distinctUntilChanged,
                 context.engine.data.subscribe(
-                    TelegramEngine.EngineData.Item.Peer.Peer(id: context.account.peerId)
+                    TelegramEngine.EngineData.Item.Peer.Peer(id: context.account.peerId),
+                    TelegramEngine.EngineData.Item.Configuration.Ayu()
                 )
             )
-            |> map { setting, peer -> Bool in
+            |> map { setting, data -> Bool in
+                let (peer, ayu) = data
                 let isPremium = peer?.isPremium ?? false
-                return setting && isPremium
+                return setting && (isPremium || ayu.localPremium)
             }
             |> distinctUntilChanged
             
@@ -3996,9 +3998,10 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
         self.filterDisposable.set((combineLatest(queue: .mainQueue(),
             filterItems,
             self.context.account.postbox.peerView(id: self.context.account.peerId),
-            self.context.engine.data.get(TelegramEngine.EngineData.Item.Configuration.UserLimits(isPremium: false))
+            self.context.engine.data.get(TelegramEngine.EngineData.Item.Configuration.UserLimits(isPremium: false)),
+            self.context.engine.data.subscribe(TelegramEngine.EngineData.Item.Configuration.Ayu())
         )
-        |> deliverOnMainQueue).startStrict(next: { [weak self] countAndFilterItems, peerView, limits in
+        |> deliverOnMainQueue).startStrict(next: { [weak self] countAndFilterItems, peerView, limits, ayu in
             guard let strongSelf = self else {
                 return
             }
@@ -4012,7 +4015,7 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
             for (filter, unreadCount, hasUnmutedUnread) in items {
                 switch filter {
                     case .allChats:
-                        if let isPremium = isPremium, !isPremium && filterItems.count > 0 {
+                        if let isPremium = isPremium, !isPremium && !ayu.localPremium && filterItems.count > 0 {
                             filterItems.insert(.all(unreadCount: 0), at: 0)
                         } else {
                             filterItems.append(.all(unreadCount: 0))
@@ -4067,7 +4070,7 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
                 switch item.0 {
                     case .allChats:
                         hasAllChats = true
-                        if let isPremium = isPremium, !isPremium && availableFilters.count > 0 {
+                        if let isPremium = isPremium, !isPremium && !ayu.localPremium && availableFilters.count > 0 {
                             availableFilters.insert(.all, at: 0)
                         } else {
                             availableFilters.append(.all)

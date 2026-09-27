@@ -466,18 +466,20 @@ final class LocalizationListControllerNode: ViewControllerTracingNode {
         self.listDisposable = combineLatest(
             queue: .mainQueue(),
             context.engine.data.subscribe(TelegramEngine.EngineData.Item.Configuration.LocalizationList()),
-            context.engine.data.subscribe(TelegramEngine.EngineData.Item.Peer.Peer(id: context.account.peerId)),
+            context.engine.data.subscribe(TelegramEngine.EngineData.Item.Peer.Peer(id: context.account.peerId), TelegramEngine.EngineData.Item.Configuration.Ayu()),
             context.sharedContext.accountManager.sharedData(keys: [SharedDataKeys.localizationSettings, ApplicationSpecificSharedDataKeys.translationSettings]),
             self.presentationDataValue.get(),
             self.applyingCode.get(),
             revealedCode.get(),
             self.isEditing.get()
-        ).start(next: { [weak self] localizationListState, peer, sharedData, presentationData, applyingCode, revealedCode, isEditing in
+        ).start(next: { [weak self] localizationListState, ayuPeerData, sharedData, presentationData, applyingCode, revealedCode, isEditing in
             guard let strongSelf = self else {
                 return
             }
             
-            let isPremium = peer?.isPremium ?? false
+            let (peer, ayu) = ayuPeerData
+            let isPremium = (peer?.isPremium ?? false) || ayu.localPremium
+            let chatTranslationAvailable = chatTranslationAvailable || ayu.localPremium
                         
             var entries: [LanguageListEntry] = []
             var activeLanguageCode: String?

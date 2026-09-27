@@ -37,7 +37,7 @@ extension ChatControllerImpl {
     
     func openMessageReactionContextMenu(message: EngineMessage, sourceView: ContextExtractedContentContainingView, gesture: ContextGesture?, value: MessageReaction.Reaction) {
         if message.areReactionsTags(accountPeerId: self.context.account.peerId) {
-            if !self.presentationInterfaceState.isPremium {
+            if !self.presentationInterfaceState.isPremium && !self.context.ayuLocalPremium {
                 self.presentTagPremiumPaywall()
                 return
             }

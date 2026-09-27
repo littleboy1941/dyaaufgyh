@@ -51,6 +51,7 @@ func ayuConsumeSelfDestructingMediaRemotely(postbox: Postbox, message: Message) 
 // A server copy of the message (difference, holes, validation, edit) comes with the media already expired;
 // keep the local media and its unopened state.
 func ayuPreservingSelfDestructingMedia(transaction: Transaction, incoming: StoreMessage) -> StoreMessage {
+    let incoming = ayuPreservingLocalSavedTags(transaction: transaction, incoming: incoming)
     guard case let .Id(id) = incoming.id, id.namespace == Namespaces.Message.Cloud else {
         return incoming
     }

@@ -236,12 +236,12 @@ private func updatedContextQueryResultStateForQuery(context: AccountContext, cha
             }
         }
     case let .emojiSearch(query, languageCode, range):
-        let hasPremium = context.engine.data.subscribe(TelegramEngine.EngineData.Item.Peer.Peer(id: context.account.peerId))
-        |> map { peer -> Bool in
-            guard case let .user(user) = peer else {
-                return false
-            }
-            return user.isPremium
+        let hasPremium = context.engine.data.subscribe(
+            TelegramEngine.EngineData.Item.Peer.Peer(id: context.account.peerId),
+            TelegramEngine.EngineData.Item.Configuration.Ayu()
+        )
+        |> map { peer, ayuSettings -> Bool in
+            return (peer?.isPremium ?? false) || ayuSettings.localPremium
         }
         |> distinctUntilChanged
     

@@ -659,7 +659,11 @@ func synchronizeSavedMessageTags(postbox: Postbox, network: Network, peerId: Pee
     |> take(1)
     |> ignoreValues
     
-    let updateSignal: Signal<Never, NoError> = (postbox.transaction { transaction -> (Bool, Peer?, Int64) in
+    let updateSignal: Signal<Never, NoError> = (postbox.transaction { transaction -> (Bool, Peer?, Int64, Bool) in
+        if ayuUsesLocalSavedTags(transaction: transaction, peerId: peerId) {
+            ayuRefreshLocalSavedTagsSummaries(transaction: transaction, peerId: peerId, threadId: threadId)
+            return (true, nil, 0, true)
+        }
         struct HashableTag {
             var titleId: UInt64?
             var count: Int
@@ -735,10 +739,12 @@ func synchronizeSavedMessageTags(postbox: Postbox, network: Network, peerId: Pee
         return (
             transaction.getPreferencesEntry(key: PreferencesKeys.didCacheSavedMessageTags(threadId: threadId)) != nil,
             threadId.flatMap { transaction.getPeer(PeerId($0)) },
-            Int64(bitPattern: hashAcc)
+            Int64(bitPattern: hashAcc),
+            false
         )
     }
-    |> mapToSignal { alreadyCached, subPeer, currentHash -> Signal<Never, NoError> in
+    |> mapToSignal { alreadyCached, subPeer, currentHash, ayuLocalTags -> Signal<Never, NoError> in
+        if ayuLocalTags { return .complete() }
         if alreadyCached && !force {
             return .complete()
         }

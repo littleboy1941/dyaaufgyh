@@ -1751,6 +1751,8 @@ public protocol AccountContext: AnyObject {
     var availableMessageEffects: Signal<AvailableMessageEffects?, NoError> { get }
     
     var isPremium: Bool { get }
+    // Ayu: client-only entitlement; isPremium and userLimits remain server-authoritative.
+    var ayuLocalPremium: Bool { get }
     var isFrozen: Bool { get }
     var userLimits: EngineConfiguration.UserLimits { get }
     var peerNameColors: PeerNameColors { get }
@@ -2073,4 +2075,8 @@ public struct TranslationConfiguration {
             return .defaultValue
         }
     }
+}
+
+public extension AccountContext {
+    var ayuLocalPremium: Bool { return false }
 }

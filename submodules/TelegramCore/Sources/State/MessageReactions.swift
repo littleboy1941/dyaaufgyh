@@ -64,9 +64,10 @@ public func updateMessageReactionsInteractively(account: Account, messageIds: [M
         
         let isPremium = (transaction.getPeer(account.peerId) as? TelegramUser)?.isPremium ?? false
         let appConfiguration = transaction.getPreferencesEntry(key: PreferencesKeys.appConfiguration)?.get(AppConfiguration.self) ?? .defaultValue
+        let ayuLocalTags = chatPeerId == account.peerId && ayuUsesLocalSavedTags(transaction: transaction, peerId: account.peerId)
         let maxCount: Int
         if isPremium {
-            let limitsConfiguration = UserLimitsConfiguration(appConfiguration: appConfiguration, isPremium: isPremium)
+            let limitsConfiguration = UserLimitsConfiguration(appConfiguration: appConfiguration, isPremium: true)
             maxCount = Int(limitsConfiguration.maxReactionsPerMessage)
         } else {
             maxCount = 1
@@ -109,8 +110,10 @@ public func updateMessageReactionsInteractively(account: Account, messageIds: [M
                 }
             }
             
-            transaction.setPendingMessageAction(type: .updateReaction, id: messageId, action: UpdateMessageReactionsAction())
+            let useLocalTags = ayuLocalTags && (transaction.getMessage(messageId)?.areReactionsTags(accountPeerId: account.peerId) ?? false) && messageId.namespace == Namespaces.Message.Cloud
+            transaction.setPendingMessageAction(type: .updateReaction, id: messageId, action: useLocalTags ? nil : UpdateMessageReactionsAction())
             transaction.updateMessage(messageId, update: { currentMessage in
+                let maxCount = useLocalTags ? Int(UserLimitsConfiguration(appConfiguration: appConfiguration, isPremium: true).maxReactionsPerMessage) : maxCount
                 var storeForwardInfo: StoreMessageForwardInfo?
                 if let forwardInfo = currentMessage.forwardInfo {
                     storeForwardInfo = StoreMessageForwardInfo(authorId: forwardInfo.author?.id, sourceId: forwardInfo.source?.id, sourceMessageId: forwardInfo.sourceMessageId, date: forwardInfo.date, authorSignature: forwardInfo.authorSignature, psaType: forwardInfo.psaType, flags: forwardInfo.flags)
@@ -163,8 +166,15 @@ public func updateMessageReactionsInteractively(account: Account, messageIds: [M
                     })
                 }
                 
-                attributes.append(PendingReactionsMessageAttribute(accountPeerId: account.peerId, reactions: mappedReactions, isLarge: isLarge, storeAsRecentlyUsed: storeAsRecentlyUsed, isTags: currentMessage.areReactionsTags(accountPeerId: account.peerId)))
-                
+                if useLocalTags {
+                    let values = mappedReactions.map { $0.value }.filter { $0 != .stars }
+                    ayuSetLocalSavedTags(transaction: transaction, message: currentMessage, reactions: values)
+                    attributes.removeAll(where: { $0 is ReactionsMessageAttribute || $0 is PendingReactionsMessageAttribute })
+                    attributes.append(ayuLocalTagsAttribute(values))
+                } else {
+                    attributes.append(PendingReactionsMessageAttribute(accountPeerId: account.peerId, reactions: mappedReactions, isLarge: isLarge, storeAsRecentlyUsed: storeAsRecentlyUsed, isTags: currentMessage.areReactionsTags(accountPeerId: account.peerId)))
+                }
+
                 return .update(StoreMessage(id: currentMessage.id, customStableId: nil, globallyUniqueId: currentMessage.globallyUniqueId, groupingKey: currentMessage.groupingKey, threadId: currentMessage.threadId, timestamp: currentMessage.timestamp, flags: StoreMessageFlags(currentMessage.flags), tags: currentMessage.tags, globalTags: currentMessage.globalTags, localTags: currentMessage.localTags, forwardInfo: storeForwardInfo, authorId: currentMessage.author?.id, text: currentMessage.text, attributes: attributes, media: currentMessage.media))
             })
         }

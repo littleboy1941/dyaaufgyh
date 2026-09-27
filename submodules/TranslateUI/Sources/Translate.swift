@@ -173,6 +173,7 @@ public func normalizeTranslationLanguage(_ code: String) -> String {
 }
 
 public func canTranslateChats(context: AccountContext) -> Bool {
+    if context.ayuLocalPremium { return true }
     let translationConfiguration = TranslationConfiguration.with(appConfiguration: context.currentAppConfiguration.with { $0 })
     var chatTranslationAvailable = true
     switch translationConfiguration.auto {

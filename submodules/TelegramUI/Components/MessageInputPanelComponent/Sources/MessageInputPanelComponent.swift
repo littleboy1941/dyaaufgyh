@@ -2800,7 +2800,7 @@ public final class MessageInputPanelComponent: Component {
             }
             
             if let emojiSuggestion = self.textFieldExternalState.currentEmojiSuggestion, emojiSuggestion.disposable == nil {
-                emojiSuggestion.disposable = (EmojiSuggestionsComponent.suggestionData(context: component.context, isSavedMessages: false, query: emojiSuggestion.position.value)
+                emojiSuggestion.disposable = (EmojiSuggestionsComponent.suggestionData(context: component.context, isSavedMessages: false, query: emojiSuggestion.position.value, ayuAllowLocalPremium: true)
                 |> deliverOnMainQueue).start(next: { [weak self, weak emojiSuggestion] result in
                     guard let self, let emojiSuggestion, self.textFieldExternalState.currentEmojiSuggestion === emojiSuggestion else {
                         return
@@ -2812,7 +2812,7 @@ public final class MessageInputPanelComponent: Component {
             }
             
             if let emojiSearch = self.textFieldExternalState.currentEmojiSearch, emojiSearch.disposable == nil {
-                emojiSearch.disposable = (EmojiSuggestionsComponent.searchData(context: component.context, isSavedMessages: false, query: emojiSearch.position.value)
+                emojiSearch.disposable = (EmojiSuggestionsComponent.searchData(context: component.context, isSavedMessages: false, query: emojiSearch.position.value, ayuAllowLocalPremium: true)
                 |> deliverOnMainQueue).start(next: { [weak self, weak emojiSearch] result in
                     guard let self, let emojiSearch, self.textFieldExternalState.currentEmojiSearch === emojiSearch else {
                         return

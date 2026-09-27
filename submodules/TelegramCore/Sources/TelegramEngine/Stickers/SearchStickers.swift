@@ -163,7 +163,7 @@ private func stickerSearchContextInitialData(account: Account, query: String, em
     let cacheKey = stickerSearchCacheKey(query: query, emoticon: emoticon)
     
     return account.postbox.transaction { transaction -> StickerSearchContextInitialData in
-        let isPremium = transaction.getPeer(account.peerId)?.isPremium ?? false
+        let isPremium = (transaction.getPeer(account.peerId)?.isPremium ?? false) || ayuSettings(transaction: transaction).localPremium
         
         var result: [FoundStickerItem] = []
         if scope.contains(.installed) {
@@ -753,7 +753,7 @@ func _internal_searchStickers(account: Account, query: String?, emoticon: [Strin
     }
     
     return account.postbox.transaction { transaction -> ([FoundStickerItem], CachedStickerQueryResult?, Bool, SearchStickersConfiguration) in
-        let isPremium = transaction.getPeer(account.peerId)?.isPremium ?? false
+        let isPremium = (transaction.getPeer(account.peerId)?.isPremium ?? false) || ayuSettings(transaction: transaction).localPremium
         
         var result: [FoundStickerItem] = []
         if scope.contains(.installed) {
@@ -1151,7 +1151,7 @@ func _internal_searchStickers(account: Account, category: EmojiSearchCategories.
     query = normalizedStickerSearchEmoticon(query)
     
     return account.postbox.transaction { transaction -> ([FoundStickerItem], CachedStickerQueryResult?, Bool, SearchStickersConfiguration) in
-        let isPremium = transaction.getPeer(account.peerId)?.isPremium ?? false
+        let isPremium = (transaction.getPeer(account.peerId)?.isPremium ?? false) || ayuSettings(transaction: transaction).localPremium
         
         var result: [FoundStickerItem] = []
         if scope.contains(.installed) {

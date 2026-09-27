@@ -220,7 +220,7 @@ public final class EmojiSearchContent: ASDisplayNode, EntitySearchContainerNode 
                             guard case let .user(user) = peer else {
                                 return false
                             }
-                            return user.isPremium
+                            return user.isPremium || self.hasPremiumForUse
                         }
                         |> distinctUntilChanged
                         

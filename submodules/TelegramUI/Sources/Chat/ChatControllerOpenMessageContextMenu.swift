@@ -132,7 +132,7 @@ extension ChatControllerImpl {
                     actions.reactionItems = topReactions.map { ReactionContextItem.reaction(item: $0, icon: .none) }
                     actions.selectedReactionItems = selectedReactions.reactions
                     if message.areReactionsTags(accountPeerId: self.context.account.peerId) {
-                        if self.presentationInterfaceState.isPremium {
+                        if self.presentationInterfaceState.isPremium || self.context.ayuLocalPremium {
                             actions.reactionsTitle = presentationData.strings.Chat_ContextMenuTagsTitle
                         } else {
                             actions.reactionsTitle = presentationData.strings.Chat_MessageContextMenu_NonPremiumTagsTitle
@@ -140,6 +140,7 @@ extension ChatControllerImpl {
                             actions.selectedReactionItems = Set()
                         }
                         actions.allPresetReactionsAreAvailable = true
+                        actions.alwaysAllowPremiumReactions = self.presentationInterfaceState.isPremium || self.context.ayuLocalPremium
                     }
                     
                     if let channel = self.presentationInterfaceState.renderedPeer?.peer as? TelegramChannel, case .broadcast = channel.info {
@@ -527,7 +528,7 @@ extension ChatControllerImpl {
 
                         if message.areReactionsTags(accountPeerId: self.context.account.peerId) {
                             if removedReaction == nil, !topReactions.contains(where: { $0.reaction.rawValue == chosenReaction }) {
-                                if !self.presentationInterfaceState.isPremium {
+                                if !self.presentationInterfaceState.isPremium && !self.context.ayuLocalPremium {
                                     controller?.premiumReactionsSelected?()
                                     return
                                 }

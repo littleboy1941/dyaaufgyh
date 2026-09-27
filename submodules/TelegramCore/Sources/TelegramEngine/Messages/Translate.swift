@@ -281,11 +281,13 @@ func _internal_translateRichMessages(account: Account, inputPeer: Api.InputPeer,
 }
 
 private func _internal_translateMessagesByPeerId(account: Account, peerId: EnginePeer.Id, messageIds: [EngineMessage.Id], fromLang: String?, toLang: String, enableLocalIfPossible: Bool, tone: TranslationTone = .neutral) -> Signal<Void, TranslationError> {
-    return account.postbox.transaction { transaction -> (Api.InputPeer?, [Message]) in
-        return (transaction.getPeer(peerId).flatMap(apiInputPeer), messageIds.compactMap({ transaction.getMessage($0) }))
+    return account.postbox.transaction { transaction -> (Api.InputPeer?, [Message], Bool) in
+        let ayu = ayuSettings(transaction: transaction)
+        let isPremium = (transaction.getPeer(account.peerId) as? TelegramUser)?.flags.contains(.isPremium) ?? false
+        return (transaction.getPeer(peerId).flatMap(apiInputPeer), messageIds.compactMap({ transaction.getMessage($0) }), ayu.localPremium && !isPremium)
     }
     |> castError(TranslationError.self)
-    |> mapToSignal { (inputPeer, messages) -> Signal<Void, TranslationError> in
+    |> mapToSignal { (inputPeer, messages, ayuTranslatePlainText) -> Signal<Void, TranslationError> in
         guard let inputPeer = inputPeer else {
             return .never()
         }
@@ -329,10 +331,14 @@ private func _internal_translateMessagesByPeerId(account: Account, peerId: Engin
         // Rich messages (a `RichTextMessageAttribute`) translate through `messages.translateRichMessage`
         // (per the layer-228 contract: pick translateText vs translateRichMessage by message type).
         let richMessageIds = messages.filter { $0.attributes.contains(where: { $0 is RichTextMessageAttribute }) }.map { $0.id }
-        let plainMessageIds = messageIds.filter { !richMessageIds.contains($0) }
+        let plainMessageIds = messageIds.filter { id in
+            if richMessageIds.contains(id) { return false }
+            if ayuTranslatePlainText { return messages.contains(where: { $0.id == id && !$0.text.isEmpty }) }
+            return true
+        }
 
         let richSignal: Signal<Void, TranslationError>
-        if richMessageIds.isEmpty {
+        if richMessageIds.isEmpty || ayuTranslatePlainText {
             richSignal = .single(Void())
         } else {
             richSignal = _internal_translateRichMessages(account: account, inputPeer: inputPeer, messageIds: richMessageIds, toLang: toLang, tone: tone)
@@ -379,6 +385,19 @@ private func _internal_translateMessagesByPeerId(account: Account, peerId: Engin
                         }
                         return .single(.translateResult(.init(result: result)))
                     }
+                }
+            } else if ayuTranslatePlainText {
+                // Ayu: use ordinary text translation, without Premium message-id requests.
+                let texts: [(String, [MessageTextEntity])] = plainMessageIds.map { id in
+                    guard let message = messages.first(where: { $0.id == id }) else { return ("", []) }
+                    let entities = message.attributes.compactMap { $0 as? TextEntitiesMessageAttribute }.first?.entities ?? []
+                    return (message.text, entities)
+                }
+                msgs = _internal_translateTexts(network: account.network, texts: texts, toLang: toLang)
+                |> map { result -> Api.messages.TranslatedText? in
+                    return .translateResult(.init(result: result.map { text, entities in
+                        .textWithEntities(.init(text: text, entities: apiEntitiesFromMessageTextEntities(entities, associatedPeers: SimpleDictionary())))
+                    }))
                 }
             } else {
                 msgs = account.network.request(Api.functions.messages.translateText(flags: flags, peer: inputPeer, id: id, text: nil, toLang: toLang, tone: tone != .neutral ? tone.rawValue : nil))

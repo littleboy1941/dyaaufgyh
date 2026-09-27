@@ -112,9 +112,9 @@ private func requestEditMessageInternal(accountPeerId: PeerId, postbox: Postbox,
                 pendingMediaContent = content.content
             }
         }
-        return postbox.transaction { transaction -> (Peer?, Message?, SimpleDictionary<PeerId, Peer>) in
+        return postbox.transaction { transaction -> (Peer?, Message?, SimpleDictionary<PeerId, Peer>, TextEntitiesMessageAttribute?) in
             guard let message = transaction.getMessage(messageId) else {
-                return (nil, nil, SimpleDictionary())
+                return (nil, nil, SimpleDictionary(), nil)
             }
             
             for (_, file) in inlineStickers {
@@ -130,7 +130,7 @@ private func requestEditMessageInternal(accountPeerId: PeerId, postbox: Postbox,
                             if let _ = scheduleInfoAttribute {
                                 break
                             } else {
-                                return (nil, nil, SimpleDictionary())
+                                return (nil, nil, SimpleDictionary(), nil)
                             }
                     }
                 }
@@ -145,16 +145,17 @@ private func requestEditMessageInternal(accountPeerId: PeerId, postbox: Postbox,
                     }
                 }
             }
-            return (transaction.getPeer(messageId.peerId), message, peers)
+            let ayuEntities = entities.map { TextEntitiesMessageAttribute(entities: ayuOutgoingEmojiEntities(transaction: transaction, accountPeerId: accountPeerId, peerId: messageId.peerId, text: text, entities: $0.entities)) }
+            return (transaction.getPeer(messageId.peerId), message, peers, ayuEntities)
         }
         |> mapError { _ -> RequestEditMessageInternalError in }
-        |> mapToSignal { peer, message, associatedPeers -> Signal<RequestEditMessageResult, RequestEditMessageInternalError> in
+        |> mapToSignal { peer, message, associatedPeers, ayuEntities -> Signal<RequestEditMessageResult, RequestEditMessageInternalError> in
             if let peer, let message, let inputPeer = apiInputPeer(peer) {
                 var flags: Int32 = 1 << 11
                 
                 var apiEntities: [Api.MessageEntity]?
                 if let entities {
-                    apiEntities = apiTextAttributeEntities(entities, associatedPeers: associatedPeers)
+                    apiEntities = apiTextAttributeEntities(ayuEntities ?? entities, associatedPeers: associatedPeers)
                     flags |= Int32(1 << 3)
                 }
                 

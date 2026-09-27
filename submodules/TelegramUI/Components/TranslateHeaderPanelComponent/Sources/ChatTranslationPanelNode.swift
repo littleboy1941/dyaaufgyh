@@ -179,7 +179,7 @@ final class ChatTranslationPanelNode: ASDisplayNode {
         let closeButtonSize = self.closeButton.measure(CGSize(width: 100.0, height: 100.0))
         self.closeButton.frame = CGRect(origin: CGPoint(x: width - contentRightInset - closeButtonSize.width, y: floorToScreenPixels((panelHeight - closeButtonSize.height) / 2.0)), size: closeButtonSize)
         
-        if info.isPremium {
+        if info.isPremium || self.context.ayuLocalPremium {
             self.moreButton.isHidden = false
             self.closeButton.isHidden = true
         } else {
@@ -211,7 +211,7 @@ final class ChatTranslationPanelNode: ASDisplayNode {
         guard let info = self.currentInfo else {
             return
         }
-        let isPremium = info.isPremium
+        let isPremium = info.isPremium || self.context.ayuLocalPremium
         
         var translationAvailable = isPremium
         if case let .channel(channel) = info.peer, channel.flags.contains(.autoTranslateEnabled) {
@@ -230,7 +230,7 @@ final class ChatTranslationPanelNode: ASDisplayNode {
             return
         }
         
-        let isPremium = info.isPremium
+        let isPremium = info.isPremium || self.context.ayuLocalPremium
         
         var translationAvailable = isPremium
         if case let .channel(channel) = info.peer, channel.flags.contains(.autoTranslateEnabled) {

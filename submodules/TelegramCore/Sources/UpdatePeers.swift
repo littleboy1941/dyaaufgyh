@@ -134,6 +134,9 @@ func updatePeers(transaction: Transaction, accountPeerId: PeerId, peers: Accumul
     var parsedPeers: [Peer] = []
     for (_, user) in peers.users {
         if let telegramUser = TelegramUser.merge(transaction.getPeer(user.peerId) as? TelegramUser, rhs: user) {
+            if telegramUser.id == accountPeerId, case let .user(data) = user, (data.flags & (1 << 20)) == 0 {
+                ayuUpdateLocalProfileBaseline(transaction: transaction, user: telegramUser)
+            }
             parsedPeers.append(telegramUser)
             switch user {
             case let .user(userData):
@@ -423,7 +426,11 @@ public func updatePeersCustom(transaction: Transaction, peers: [Peer], update: (
                 break
         }
         
-        return update(previous, updated)
+        let result = update(previous, updated)
+        if let user = result as? TelegramUser {
+            return ayuApplyLocalProfile(transaction: transaction, user: user)
+        }
+        return result
     })
 }
 

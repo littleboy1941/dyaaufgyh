@@ -530,7 +530,7 @@ extension StoreMessage {
 
                     var quote: EngineMessageReplyQuote?
                     if quoteText != nil || replyMedia != nil {
-                        quote = EngineMessageReplyQuote(text: quoteText ?? "", offset: quoteOffset.flatMap(Int.init), entities: messageTextEntitiesFromApiEntities(quoteEntities ?? []), media: textMediaAndExpirationTimerFromApiMedia(replyMedia, peerId).media)
+                        quote = EngineMessageReplyQuote(text: quoteText ?? "", offset: quoteOffset.flatMap(Int.init), entities: messageTextEntitiesFromApiEntities(quoteEntities ?? [], ayuText: quoteText ?? ""), media: textMediaAndExpirationTimerFromApiMedia(replyMedia, peerId).media)
                     }
 
                     if let replyToMsgId {
@@ -553,7 +553,7 @@ extension StoreMessage {
                 }
             }
 
-            let parsedEntities = messageTextEntitiesFromApiEntities(entities ?? [])
+            let parsedEntities = messageTextEntitiesFromApiEntities(entities ?? [], ayuText: text)
             attributes.append(TextEntitiesMessageAttribute(entities: parsedEntities))
 
             if let replyMarkup {
@@ -961,7 +961,7 @@ func apiMediaAreasFromMediaAreas(_ mediaAreas: [MediaArea], transaction: Transac
 }
 
 
-func messageTextEntitiesFromApiEntities(_ entities: [Api.MessageEntity]) -> [MessageTextEntity] {
+func messageTextEntitiesFromApiEntities(_ entities: [Api.MessageEntity], ayuText: String? = nil) -> [MessageTextEntity] {
     var result: [MessageTextEntity] = []
     for entity in entities {
         switch entity {
@@ -1055,6 +1055,9 @@ func messageTextEntitiesFromApiEntities(_ entities: [Api.MessageEntity]) -> [Mes
             break
         }
     }
+    if let ayuText {
+        return ayuDecodeLocalPremiumEmoji(text: ayuText, entities: result)
+    }
     return result
 }
 
@@ -1104,7 +1107,7 @@ extension StoreMessage {
                         let isQuote = (innerFlags & (1 << 9)) != 0
                         
                         if quoteText != nil || replyMedia != nil {
-                            quote = EngineMessageReplyQuote(text: quoteText ?? "", offset: quoteOffset.flatMap(Int.init), entities: messageTextEntitiesFromApiEntities(quoteEntities ?? []), media: textMediaAndExpirationTimerFromApiMedia(replyMedia, peerId).media)
+                            quote = EngineMessageReplyQuote(text: quoteText ?? "", offset: quoteOffset.flatMap(Int.init), entities: messageTextEntitiesFromApiEntities(quoteEntities ?? [], ayuText: quoteText ?? ""), media: textMediaAndExpirationTimerFromApiMedia(replyMedia, peerId).media)
                         }
                         
                         if let replyToMsgId = replyToMsgId {
@@ -1348,7 +1351,7 @@ extension StoreMessage {
             
                 var entitiesAttribute: TextEntitiesMessageAttribute?
                 if let entities, !entities.isEmpty {
-                    let attribute = TextEntitiesMessageAttribute(entities: messageTextEntitiesFromApiEntities(entities))
+                    let attribute = TextEntitiesMessageAttribute(entities: messageTextEntitiesFromApiEntities(entities, ayuText: message))
                     entitiesAttribute = attribute
                     attributes.append(attribute)
                 } else {
@@ -1503,7 +1506,7 @@ extension StoreMessage {
                             var quote: EngineMessageReplyQuote?
                             let isQuote = (innerFlags & (1 << 9)) != 0
                             if quoteText != nil || replyMedia != nil {
-                                quote = EngineMessageReplyQuote(text: quoteText ?? "", offset: quoteOffset.flatMap(Int.init), entities: messageTextEntitiesFromApiEntities(quoteEntities ?? []), media: textMediaAndExpirationTimerFromApiMedia(replyMedia, peerId).media)
+                                quote = EngineMessageReplyQuote(text: quoteText ?? "", offset: quoteOffset.flatMap(Int.init), entities: messageTextEntitiesFromApiEntities(quoteEntities ?? [], ayuText: quoteText ?? ""), media: textMediaAndExpirationTimerFromApiMedia(replyMedia, peerId).media)
                             }
 
                             if let replyToMsgId = replyToMsgId {
@@ -1533,7 +1536,7 @@ extension StoreMessage {
                         var quote: EngineMessageReplyQuote?
                         let isQuote = (innerFlags & (1 << 9)) != 0
                         if quoteText != nil || replyMedia != nil {
-                            quote = EngineMessageReplyQuote(text: quoteText ?? "", offset: quoteOffset.flatMap(Int.init), entities: messageTextEntitiesFromApiEntities(quoteEntities ?? []), media: textMediaAndExpirationTimerFromApiMedia(replyMedia, peerId).media)
+                            quote = EngineMessageReplyQuote(text: quoteText ?? "", offset: quoteOffset.flatMap(Int.init), entities: messageTextEntitiesFromApiEntities(quoteEntities ?? [], ayuText: quoteText ?? ""), media: textMediaAndExpirationTimerFromApiMedia(replyMedia, peerId).media)
                         }
                         
                         if let replyToMsgId = replyToMsgId {

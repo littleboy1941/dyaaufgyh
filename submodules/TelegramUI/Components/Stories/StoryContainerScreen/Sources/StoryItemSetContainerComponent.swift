@@ -7330,7 +7330,7 @@ public final class StoryItemSetContainerComponent: Component {
                             if isHq {
                                 return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/QualitySd"), color: theme.contextMenu.primaryColor)
                             } else {
-                                return generateTintedImage(image: UIImage(bundleImageName: accountUser.isPremium ? "Chat/Context Menu/QualityHd" : "Chat/Context Menu/QualityHdLocked"), color: theme.contextMenu.primaryColor)
+                                return generateTintedImage(image: UIImage(bundleImageName: (accountUser.isPremium || component.context.ayuLocalPremium) ? "Chat/Context Menu/QualityHd" : "Chat/Context Menu/QualityHdLocked"), color: theme.contextMenu.primaryColor)
                             }
                         }, action: { [weak self] _, a in
                             a(.default)
@@ -7339,7 +7339,7 @@ public final class StoryItemSetContainerComponent: Component {
                                 return
                             }
                             
-                            if !component.slice.additionalPeerData.preferHighQualityStories && !accountUser.isPremium {
+                            if !component.slice.additionalPeerData.preferHighQualityStories && !accountUser.isPremium && !component.context.ayuLocalPremium {
                                 self.presentQualityUpgradeScreen()
                                 
                                 return

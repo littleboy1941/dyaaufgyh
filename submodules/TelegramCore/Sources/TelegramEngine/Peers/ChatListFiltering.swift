@@ -1056,6 +1056,27 @@ struct ChatListFiltersState: Codable, Equatable {
     }
 }
 
+// Ayu: preserve the ordinary folder order, only move All Chats locally.
+private func ayuOrderedChatListFilters(_ filters: [ChatListFilter], settings: AyuSettings) -> [ChatListFilter] {
+    guard settings.localPremium, let position = settings.ayuAllChatsPosition,
+          let index = filters.firstIndex(where: { $0.id == 0 }) else { return filters }
+    var result = filters
+    let allChats = result.remove(at: index)
+    result.insert(allChats, at: max(0, min(position, result.count)))
+    return result
+}
+
+private func ayuStoreChatListFilterOrder(transaction: Transaction, filters: [ChatListFilter]) -> [ChatListFilter] {
+    var settings = ayuSettings(transaction: transaction)
+    guard settings.localPremium, let index = filters.firstIndex(where: { $0.id == 0 }) else { return filters }
+    settings.ayuAllChatsPosition = index
+    transaction.updatePreferencesEntry(key: PreferencesKeys.ayuSettings, { _ in PreferencesEntry(settings) })
+    var serverFilters = filters
+    let allChats = serverFilters.remove(at: index)
+    serverFilters.insert(allChats, at: 0)
+    return serverFilters
+}
+
 func _internal_generateNewChatListFilterId(filters: [ChatListFilter]) -> Int32 {
     while true {
         let id = Int32(2 + arc4random_uniform(255 - 2))
@@ -1071,12 +1092,14 @@ func _internal_updateChatListFiltersInteractively(postbox: Postbox, _ f: @escapi
         var hasUpdates = false
         transaction.updatePreferencesEntry(key: PreferencesKeys.chatListFilters, { entry in
             var state = entry?.get(ChatListFiltersState.self) ?? ChatListFiltersState.default
-            let updatedFilters = f(state.filters)
+            let ayu = ayuSettings(transaction: transaction)
+            let localFilters = f(ayuOrderedChatListFilters(state.filters, settings: ayu))
+            let updatedFilters = ayuStoreChatListFilterOrder(transaction: transaction, filters: localFilters)
             if updatedFilters != state.filters {
                 state.filters = updatedFilters
                 hasUpdates = true
             }
-            updated = updatedFilters
+            updated = localFilters
             
             state.normalize()
             
@@ -1130,7 +1153,8 @@ func _internal_updateChatListFiltersInteractively(transaction: Transaction, _ f:
     var hasUpdates = false
     transaction.updatePreferencesEntry(key: PreferencesKeys.chatListFilters, { entry in
         var state = entry?.get(ChatListFiltersState.self) ?? ChatListFiltersState.default
-        let updatedFilters = f(state.filters)
+        let localFilters = f(ayuOrderedChatListFilters(state.filters, settings: ayuSettings(transaction: transaction)))
+        let updatedFilters = ayuStoreChatListFilterOrder(transaction: transaction, filters: localFilters)
         if updatedFilters != state.filters {
             state.filters = updatedFilters
             hasUpdates = true
@@ -1145,12 +1169,13 @@ func _internal_updateChatListFiltersInteractively(transaction: Transaction, _ f:
 
 func _internal_updatedChatListFilters(postbox: Postbox, hiddenIds: Signal<Set<Int32>, NoError> = .single(Set())) -> Signal<[ChatListFilter], NoError> {
     return combineLatest(
-        postbox.preferencesView(keys: [PreferencesKeys.chatListFilters]),
+        postbox.preferencesView(keys: [PreferencesKeys.chatListFilters, PreferencesKeys.ayuSettings]),
         hiddenIds
     )
     |> map { preferences, hiddenIds -> [ChatListFilter] in
         let filtersState = preferences.values[PreferencesKeys.chatListFilters]?.get(ChatListFiltersState.self) ?? ChatListFiltersState.default
-        return filtersState.filters.filter { filter in
+        let ayu = preferences.values[PreferencesKeys.ayuSettings]?.get(AyuSettings.self) ?? .default
+        return ayuOrderedChatListFilters(filtersState.filters, settings: ayu).filter { filter in
             if hiddenIds.contains(filter.id) {
                 return false
             } else {

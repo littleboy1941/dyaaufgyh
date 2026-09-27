@@ -2232,7 +2232,7 @@ extension ChatControllerImpl {
                     if let value = value as? ChatTextInputTextCustomEmojiAttribute {
                         if let file = value.file {
                             inlineStickers[file.fileId] = file
-                            if file.isPremiumEmoji && !strongSelf.presentationInterfaceState.isPremium && strongSelf.chatLocation.peerId != strongSelf.context.account.peerId {
+                            if file.isPremiumEmoji && !strongSelf.presentationInterfaceState.isPremium && !strongSelf.ayuLocalPremium && strongSelf.chatLocation.peerId != strongSelf.context.account.peerId {
                                 if firstLockedPremiumEmoji == nil {
                                     firstLockedPremiumEmoji = file
                                 }

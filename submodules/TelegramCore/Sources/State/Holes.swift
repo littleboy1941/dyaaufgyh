@@ -433,7 +433,11 @@ func fetchMessageHistoryHole(accountPeerId: PeerId, source: FetchMessageHistoryH
     }
     |> take(1)
     |> mapToSignal { _ -> Signal<FetchMessageHistoryHoleResult?, NoError> in
-        return postbox.transaction { transaction -> (Peer?, Int64, Peer?) in
+        return postbox.transaction { transaction -> (Peer?, Int64, Peer?, Bool) in
+            var ayuLocalTagFilter = false
+            if case .customTag = space, case let .direct(peerId, _) = peerInput, peerId == accountPeerId {
+                ayuLocalTagFilter = ayuUsesLocalSavedTags(transaction: transaction, peerId: accountPeerId)
+            }
             switch peerInput {
             case let .direct(peerId, _):
                 let peer = transaction.getPeer(peerId)
@@ -441,12 +445,21 @@ func fetchMessageHistoryHole(accountPeerId: PeerId, source: FetchMessageHistoryH
                 if let peer {
                     subPeerId = peerInput.requestSubPeerId(accountPeerId: accountPeerId, peer: peer)
                 }
-                return (peer, 0, subPeerId.flatMap(transaction.getPeer))
+                return (peer, 0, subPeerId.flatMap(transaction.getPeer), ayuLocalTagFilter)
             case let .threadFromChannel(channelMessageId):
-                return (transaction.getPeer(channelMessageId.peerId), 0, nil)
+                return (transaction.getPeer(channelMessageId.peerId), 0, nil, false)
             }
         }
-        |> mapToSignal { (peer, hash, subPeer) -> Signal<FetchMessageHistoryHoleResult?, NoError> in
+        |> mapToSignal { (peer, hash, subPeer, ayuLocalTagFilter) -> Signal<FetchMessageHistoryHoleResult?, NoError> in
+            if ayuLocalTagFilter, let peer {
+                return postbox.transaction { transaction -> FetchMessageHistoryHoleResult? in
+                    let threadId = peerInput.requestThreadId(accountPeerId: accountPeerId, peer: peer)
+                    let range: ClosedRange<Int32> = 1 ... (Int32.max - 1)
+                    transaction.removeHole(peerId: peer.id, threadId: threadId, namespace: namespace, space: space, range: range)
+                    let indices = IndexSet(integersIn: Int(range.lowerBound) ... Int(range.upperBound))
+                    return FetchMessageHistoryHoleResult(removedIndices: indices, strictRemovedIndices: indices, actualPeerId: peer.id, actualThreadId: threadId, ids: [])
+                }
+            }
             guard let peer = peer else {
                 return .single(FetchMessageHistoryHoleResult(removedIndices: IndexSet(), strictRemovedIndices: IndexSet(), actualPeerId: nil, actualThreadId: nil, ids: []))
             }

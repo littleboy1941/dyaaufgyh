@@ -264,13 +264,12 @@ final class EmojisChatInputContextPanelNode: ChatInputContextPanelNode {
         let _ = context
         let _ = accountPeerId
         
-        return context.engine.data.get(TelegramEngine.EngineData.Item.Peer.Peer(id: accountPeerId))
-        |> map { peer -> Bool in
-            var hasPremium = false
-            if case let .user(user) = peer, user.isPremium {
-                hasPremium = true
-            }
-            return hasPremium
+        return context.engine.data.get(
+            TelegramEngine.EngineData.Item.Peer.Peer(id: accountPeerId),
+            TelegramEngine.EngineData.Item.Configuration.Ayu()
+        )
+        |> map { peer, ayuSettings -> Bool in
+            return (peer?.isPremium ?? false) || ayuSettings.localPremium
         }
         |> deliverOnMainQueue
         |> map { [weak self, weak itemLayer] hasPremium -> (UIView, CGRect, PeekControllerContent)? in

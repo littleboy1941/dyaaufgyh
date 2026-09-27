@@ -29,7 +29,7 @@ func _internal_synchronizeableChatInputState(accountPeerId: PeerId, peerId: Peer
                     quote = EngineMessageReplyQuote(
                         text: quoteText,
                         offset: quoteOffset.flatMap(Int.init),
-                        entities: messageTextEntitiesFromApiEntities(quoteEntities ?? []),
+                        entities: messageTextEntitiesFromApiEntities(quoteEntities ?? [], ayuText: quoteText ?? ""),
                         media: nil
                     )
                 }
@@ -83,7 +83,7 @@ func _internal_synchronizeableChatInputState(accountPeerId: PeerId, peerId: Peer
         if let apiRichMessage = draftMessageData.richMessage {
             syncContent = .instantPage(RichTextMessageAttribute(apiRichMessage: apiRichMessage).instantPage)
         } else {
-            syncContent = .textEntities(text: message, entities: messageTextEntitiesFromApiEntities(entities ?? []))
+            syncContent = .textEntities(text: message, entities: messageTextEntitiesFromApiEntities(entities ?? [], ayuText: message))
         }
         return SynchronizeableChatInputState(replySubject: replySubject, content: syncContent, timestamp: date, textSelection: nil, messageEffectId: messageEffectId, suggestedPost: parsedSuggestedPost)
     }

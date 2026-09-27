@@ -420,7 +420,8 @@ public func deleteAccountOptionsController(context: AccountContext, navigationCo
                 break
         }
         
-        let canAddAccounts = accountsAndPeers.1.count + 1 < maximumNumberOfAccounts
+        let ayuAccountLimit = context.ayuLocalPremium || accountsAndPeers.1.contains(where: { $0.0.ayuLocalPremium }) ? maximumPremiumNumberOfAccounts : maximumNumberOfAccounts
+        let canAddAccounts = accountsAndPeers.1.count + 1 < ayuAccountLimit
 
         let controllerState = ItemListControllerState(presentationData: ItemListPresentationData(presentationData), title: .text(presentationData.strings.DeleteAccount_AlternativeOptionsTitle), leftNavigationButton: leftNavigationButton, rightNavigationButton: nil, backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back))
         let listState = ItemListNodeState(presentationData: ItemListPresentationData(presentationData), entries: deleteAccountOptionsEntries(presentationData: presentationData, canAddAccounts: canAddAccounts, hasTwoStepAuth: hasTwoStepAuth, hasPasscode: hasPasscode), style: .blocks)

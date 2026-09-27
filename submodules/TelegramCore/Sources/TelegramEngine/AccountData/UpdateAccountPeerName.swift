@@ -57,9 +57,22 @@ public enum UpdateNameColorAndEmojiError {
 }
 
 func _internal_updateNameColorAndEmoji(account: Account, nameColor: UpdateNameColor, profileColor: PeerNameColor?, profileBackgroundEmojiId: Int64?) -> Signal<Void, UpdateNameColorAndEmojiError> {
-    return account.postbox.transaction { transaction -> Signal<Peer, NoError> in
+    return account.postbox.transaction { transaction -> Signal<Bool, NoError> in
         guard let peer = transaction.getPeer(account.peerId) as? TelegramUser else {
             return .complete()
+        }
+        var ayu = ayuSettings(transaction: transaction)
+        var ayuApplyLocally = false
+        if ayu.localPremium, !peer.flags.contains(.isPremium), case let .preset(color, backgroundEmojiId) = nameColor {
+            var profile = ayu.ayuLocalProfile ?? AyuLocalProfile(user: peer)
+            profile.hasColors = true
+            profile.nameColor = color.rawValue
+            profile.backgroundEmojiId = backgroundEmojiId
+            profile.profileColor = profileColor?.rawValue
+            profile.profileBackgroundEmojiId = profileBackgroundEmojiId
+            ayu.ayuLocalProfile = profile
+            transaction.updatePreferencesEntry(key: PreferencesKeys.ayuSettings, { _ in PreferencesEntry(ayu) })
+            ayuApplyLocally = true
         }
         var nameColorValue: PeerColor
         var backgroundEmojiIdValue: Int64?
@@ -75,11 +88,12 @@ func _internal_updateNameColorAndEmoji(account: Account, nameColor: UpdateNameCo
         updatePeersCustom(transaction: transaction, peers: [peer.withUpdatedNameColor(nameColorValue).withUpdatedBackgroundEmojiId(backgroundEmojiIdValue).withUpdatedProfileColor(profileColor).withUpdatedProfileBackgroundEmojiId(profileBackgroundEmojiId)], update: { _, updated in
             return updated
         })
-        return .single(peer)
+        return .single(ayuApplyLocally)
     }
     |> switchToLatest
     |> castError(UpdateNameColorAndEmojiError.self)
-    |> mapToSignal { _ -> Signal<Void, UpdateNameColorAndEmojiError> in
+    |> mapToSignal { ayuApplyLocally -> Signal<Void, UpdateNameColorAndEmojiError> in
+        if ayuApplyLocally { return .complete() }
         let inputRepliesColor: Api.PeerColor
         switch nameColor {
         case let .preset(color, backgroundEmojiId):

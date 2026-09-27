@@ -266,6 +266,7 @@ public final class AccountContextImpl: AccountContext {
     public private(set) var audioTranscriptionTrial: AudioTranscription.TrialState
     
     public private(set) var isPremium: Bool
+    public private(set) var ayuLocalPremium: Bool = false
     
     private var isFrozenDisposable: Disposable?
     public private(set) var isFrozen: Bool
@@ -437,19 +438,23 @@ public final class AccountContextImpl: AccountContext {
             strongSelf.animatedEmojiStickersPromise.set(.single(stickers))
         })
         
-        self.userLimitsConfigurationDisposable = (self.engine.data.subscribe(TelegramEngine.EngineData.Item.Peer.Peer(id: account.peerId))
-        |> mapToSignal { peer -> Signal<(Bool, EngineConfiguration.UserLimits), NoError> in
+        self.userLimitsConfigurationDisposable = (combineLatest(
+            self.engine.data.subscribe(TelegramEngine.EngineData.Item.Peer.Peer(id: account.peerId)),
+            self.engine.data.subscribe(TelegramEngine.EngineData.Item.Configuration.Ayu())
+        )
+        |> mapToSignal { peer, ayu -> Signal<(Bool, Bool, EngineConfiguration.UserLimits), NoError> in
             let isPremium = peer?.isPremium ?? false
             return self.engine.data.subscribe(TelegramEngine.EngineData.Item.Configuration.UserLimits(isPremium: isPremium))
             |> map { userLimits in
-                return (isPremium, userLimits)
+                return (isPremium, ayu.localPremium, userLimits)
             }
         }
-        |> deliverOnMainQueue).startStrict(next: { [weak self] isPremium, userLimits in
+        |> deliverOnMainQueue).startStrict(next: { [weak self] isPremium, ayuLocalPremium, userLimits in
             guard let self = self else {
                 return
             }
             self.isPremium = isPremium
+            self.ayuLocalPremium = ayuLocalPremium
             self.userLimits = userLimits
         })
         

@@ -4907,7 +4907,7 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
                     guard let self else {
                         return false
                     }
-                    if self.context.isPremium {
+                    if self.context.isPremium || (self.controller?.ayuLocalPremium ?? false) {
                         return true
                     }
                     guard let file else {
@@ -4955,7 +4955,7 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
                             }
                         }
                         
-                        if file.isPremiumEmoji && !self.chatPresentationInterfaceState.isPremium && self.chatPresentationInterfaceState.chatLocation.peerId != self.context.account.peerId && !isPeerSpecific {
+                        if file.isPremiumEmoji && !self.chatPresentationInterfaceState.isPremium && !(self.controller?.ayuLocalPremium ?? false) && self.chatPresentationInterfaceState.chatLocation.peerId != self.context.account.peerId && !isPeerSpecific {
                             if firstLockedPremiumEmoji == nil {
                                 firstLockedPremiumEmoji = file
                             }

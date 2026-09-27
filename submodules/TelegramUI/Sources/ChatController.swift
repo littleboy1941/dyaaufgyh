@@ -272,6 +272,7 @@ public final class ChatControllerImpl: TelegramBaseController, ChatController, G
     let preloadNextChatPeerIdDisposable = MetaDisposable()
     
     var accountPeerDisposable: Disposable?
+    var ayuLocalPremium = false
     
     let cachedDataReady = Promise<Bool>()
     var didSetCachedDataReady = false
@@ -1727,7 +1728,7 @@ public final class ChatControllerImpl: TelegramBaseController, ChatController, G
                     return
                 }
                 
-                if !strongSelf.presentationInterfaceState.isPremium {
+                if !strongSelf.presentationInterfaceState.isPremium && !strongSelf.context.ayuLocalPremium {
                     strongSelf.presentTagPremiumPaywall()
                     return
                 }
@@ -2147,7 +2148,7 @@ public final class ChatControllerImpl: TelegramBaseController, ChatController, G
                             }
                         }
                         
-                        if !strongSelf.presentationInterfaceState.isPremium && mappedUpdatedReactions.count > strongSelf.context.userLimits.maxReactionsPerMessage {
+                        if !strongSelf.presentationInterfaceState.isPremium && !(message.areReactionsTags(accountPeerId: strongSelf.context.account.peerId) && strongSelf.context.ayuLocalPremium) && mappedUpdatedReactions.count > strongSelf.context.userLimits.maxReactionsPerMessage {
                             let _ = (ApplicationSpecificNotice.incrementMultipleReactionsSuggestion(accountManager: strongSelf.context.sharedContext.accountManager)
                                      |> deliverOnMainQueue).startStandalone(next: { [weak self] count in
                                 guard let self else {
@@ -6346,9 +6347,14 @@ public final class ChatControllerImpl: TelegramBaseController, ChatController, G
             }
         })
         
-        self.accountPeerDisposable = (context.account.postbox.peerView(id: context.account.peerId)
-        |> deliverOnMainQueue).startStrict(next: { [weak self] peerView in
+        // Ayu: keep the real Premium presentation state; only emoji insertion uses the local flag.
+        self.accountPeerDisposable = (combineLatest(
+            context.account.postbox.peerView(id: context.account.peerId),
+            context.engine.data.subscribe(TelegramEngine.EngineData.Item.Configuration.Ayu())
+        )
+        |> deliverOnMainQueue).startStrict(next: { [weak self] peerView, ayuSettings in
             if let strongSelf = self {
+                strongSelf.ayuLocalPremium = ayuSettings.localPremium && strongSelf.chatLocation.peerId?.namespace != Namespaces.Peer.SecretChat
                 let isPremium = peerView.peers[peerView.peerId]?.isPremium ?? false
                 strongSelf.updateChatPresentationInterfaceState(animated: false, interactive: false, { state in
                     return state.updatedIsPremium(isPremium)

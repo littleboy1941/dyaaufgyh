@@ -39,6 +39,13 @@ public struct AyuSettings: Equatable, Codable {
     // Link previews are requested through a mirror host that renders them properly (x.com, Reddit, ...)
     public var improveLinkPreviews: Bool = true
 
+    // Ayu: UI entitlement only. The server's TelegramUser premium flag stays unchanged.
+    public var localPremium: Bool = false
+    // Ayu: All Chats position is local; server folder limits and ordering stay valid.
+    var ayuAllChatsPosition: Int? = nil
+    var ayuLocalProfile: AyuLocalProfile? = nil
+    var ayuLocalSavedTags: AyuLocalSavedTags? = nil
+
     // Ghost mode: the master switch. Every ghost* toggle below only applies while this is on, so the
     // individual choices survive turning the mode off and back on.
     public var ghostMode: Bool = false
@@ -77,6 +84,10 @@ public struct AyuSettings: Equatable, Codable {
         case hideSimilarChannels
         case showMessageSeconds
         case improveLinkPreviews
+        case localPremium
+        case ayuAllChatsPosition
+        case ayuLocalProfile
+        case ayuLocalSavedTags
         case ghostMode
         case ghostDontReadMessages
         case ghostDontReadMedia
@@ -107,6 +118,10 @@ public struct AyuSettings: Equatable, Codable {
         self.hideSimilarChannels = try container.decodeIfPresent(Bool.self, forKey: .hideSimilarChannels) ?? defaults.hideSimilarChannels
         self.showMessageSeconds = try container.decodeIfPresent(Bool.self, forKey: .showMessageSeconds) ?? defaults.showMessageSeconds
         self.improveLinkPreviews = try container.decodeIfPresent(Bool.self, forKey: .improveLinkPreviews) ?? defaults.improveLinkPreviews
+        self.localPremium = try container.decodeIfPresent(Bool.self, forKey: .localPremium) ?? defaults.localPremium
+        self.ayuAllChatsPosition = try container.decodeIfPresent(Int.self, forKey: .ayuAllChatsPosition)
+        self.ayuLocalProfile = try container.decodeIfPresent(AyuLocalProfile.self, forKey: .ayuLocalProfile)
+        self.ayuLocalSavedTags = try container.decodeIfPresent(AyuLocalSavedTags.self, forKey: .ayuLocalSavedTags)
         self.ghostMode = try container.decodeIfPresent(Bool.self, forKey: .ghostMode) ?? defaults.ghostMode
         self.ghostDontReadMessages = try container.decodeIfPresent(Bool.self, forKey: .ghostDontReadMessages) ?? defaults.ghostDontReadMessages
         self.ghostDontReadMedia = try container.decodeIfPresent(Bool.self, forKey: .ghostDontReadMedia) ?? defaults.ghostDontReadMedia
@@ -135,6 +150,10 @@ public struct AyuSettings: Equatable, Codable {
         try container.encode(self.hideSimilarChannels, forKey: .hideSimilarChannels)
         try container.encode(self.showMessageSeconds, forKey: .showMessageSeconds)
         try container.encode(self.improveLinkPreviews, forKey: .improveLinkPreviews)
+        try container.encode(self.localPremium, forKey: .localPremium)
+        try container.encodeIfPresent(self.ayuAllChatsPosition, forKey: .ayuAllChatsPosition)
+        try container.encodeIfPresent(self.ayuLocalProfile, forKey: .ayuLocalProfile)
+        try container.encodeIfPresent(self.ayuLocalSavedTags, forKey: .ayuLocalSavedTags)
         try container.encode(self.ghostMode, forKey: .ghostMode)
         try container.encode(self.ghostDontReadMessages, forKey: .ghostDontReadMessages)
         try container.encode(self.ghostDontReadMedia, forKey: .ghostDontReadMedia)
@@ -184,10 +203,23 @@ func ayuSettings(transaction: Transaction) -> AyuSettings {
 public extension TelegramEngine {
     func ayuUpdateSettings(_ f: @escaping (AyuSettings) -> AyuSettings) -> Signal<Never, NoError> {
         return self.account.postbox.transaction { transaction -> Void in
-            transaction.updatePreferencesEntry(key: PreferencesKeys.ayuSettings, { current in
-                let previous = current?.get(AyuSettings.self) ?? AyuSettings.default
-                return PreferencesEntry(f(previous))
-            })
+            let previous = ayuSettings(transaction: transaction)
+            let updated = f(previous)
+            transaction.updatePreferencesEntry(key: PreferencesKeys.ayuSettings, { _ in PreferencesEntry(updated) })
+            if previous.localPremium != updated.localPremium {
+                ayuRestoreLocalSavedTags(transaction: transaction, accountPeerId: self.account.peerId, enabled: updated.localPremium, savedTags: previous.ayuLocalSavedTags)
+            }
+            if previous.localPremium != updated.localPremium, let user = transaction.getPeer(self.account.peerId) as? TelegramUser {
+                let peer: TelegramUser
+                if updated.localPremium {
+                    peer = ayuApplyLocalProfile(transaction: transaction, user: user)
+                } else if let profile = previous.ayuLocalProfile, profile.peerId == user.id.toInt64(), let serverUser = profile.serverUser {
+                    peer = ayuUserWithAppearance(user, source: serverUser, colors: profile.hasColors, status: profile.hasStatus)
+                } else {
+                    peer = user
+                }
+                updatePeersCustom(transaction: transaction, peers: [peer], update: { _, updated in updated })
+            }
         }
         |> ignoreValues
     }

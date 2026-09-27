@@ -1232,7 +1232,7 @@ private func finalStateWithUpdatesAndServerTime(accountPeerId: PeerId, postbox: 
                     } else {
                         var attributes: [MessageAttribute] = []
                         if !entities.isEmpty {
-                            attributes.append(TextEntitiesMessageAttribute(entities: messageTextEntitiesFromApiEntities(entities)))
+                            attributes.append(TextEntitiesMessageAttribute(entities: messageTextEntitiesFromApiEntities(entities, ayuText: text)))
                         }
                         let messageText = text
                         var medias: [Media] = []
@@ -4453,6 +4453,7 @@ func replayFinalState(
 
                 let idsToDelete = ids.filter { !savedGlobalIds.contains($0) }
                 var resourceIds: [MediaResourceId] = []
+                ayuRemoveLocalSavedTags(transaction: transaction, ids: transaction.messageIdsForGlobalIds(idsToDelete))
                 transaction.deleteMessagesWithGlobalIds(idsToDelete, forEachMedia: { media in
                     addMessageMediaResourceIdsToRemove(media: media, resourceIds: &resourceIds)
                 })
@@ -4473,6 +4474,9 @@ func replayFinalState(
                     updatePeerChatInclusionWithMinTimestamp(transaction: transaction, id: id.peerId, minTimestamp: message.timestamp, forceRootGroupIfNotExists: false)
                 }
                 var resourceIds: [MediaResourceId] = []
+                if id.namespace == Namespaces.Message.Cloud, let local = ayuSettings(transaction: transaction).ayuLocalSavedTags, local.peerId == id.peerId.toInt64() {
+                    ayuRemoveLocalSavedTags(transaction: transaction, ids: local.messages.keys.filter { $0 <= id.id }.map { MessageId(peerId: id.peerId, namespace: id.namespace, id: $0) })
+                }
                 transaction.deleteMessagesInRange(peerId: id.peerId, namespace: id.namespace, minId: 1, maxId: id.id, forEachMedia: { media in
                     addMessageMediaResourceIdsToRemove(media: media, resourceIds: &resourceIds)
                 })
@@ -4900,7 +4904,18 @@ func replayFinalState(
                 updatePeers(transaction: transaction, accountPeerId: accountPeerId, peers: parsedPeers)
                 updateContacts(transaction: transaction, apiUsers: users)
             case let .UpdatePeer(id, f):
-                if let peer = f(transaction.getPeer(id)) {
+                var ayuServerPeer = transaction.getPeer(id)
+                if id == accountPeerId {
+                    let settings = ayuSettings(transaction: transaction)
+                    if settings.localPremium, let current = ayuServerPeer as? TelegramUser,
+                       let profile = settings.ayuLocalProfile, profile.peerId == id.toInt64(), let baseline = profile.serverUser {
+                        ayuServerPeer = ayuUserWithAppearance(current, source: baseline, colors: profile.hasColors, status: profile.hasStatus)
+                    }
+                }
+                if let peer = f(ayuServerPeer) {
+                    if id == accountPeerId, let user = peer as? TelegramUser {
+                        ayuUpdateLocalProfileBaseline(transaction: transaction, user: user)
+                    }
                     if id == accountPeerId, let updatedAccountPeer = peer as? TelegramUser, let previousAccountPeer = transaction.getPeer(accountPeerId) as? TelegramUser {
                         if updatedAccountPeer.isPremium != previousAccountPeer.isPremium {
                             isPremiumUpdated = true
@@ -5296,40 +5311,42 @@ func replayFinalState(
                     })
                 }
             case let .UpdateMessageReactions(messageId, _, reactions, _):
-                transaction.updateMessage(messageId, update: { currentMessage in
-                    var updatedReactions = ReactionsMessageAttribute(apiReactions: reactions)
-                    
-                    let storeForwardInfo = currentMessage.forwardInfo.flatMap(StoreMessageForwardInfo.init)
-                    var attributes = currentMessage.attributes
-                    var previousReactions: ReactionsMessageAttribute?
-                    let _ = previousReactions
-                    var added = false
-                    loop: for j in 0 ..< attributes.count {
-                        if let attribute = attributes[j] as? ReactionsMessageAttribute {
-                            added = true
-                            previousReactions = attribute
-                            updatedReactions = attribute.withUpdatedResults(reactions)
-                            
-                            if updatedReactions == attribute {
-                                return .skip
+                if !ayuPreserveLocalSavedReactionUpdate(transaction: transaction, messageId: messageId, reactions: ReactionsMessageAttribute(apiReactions: reactions)) {
+                    transaction.updateMessage(messageId, update: { currentMessage in
+                        var updatedReactions = ReactionsMessageAttribute(apiReactions: reactions)
+
+                        let storeForwardInfo = currentMessage.forwardInfo.flatMap(StoreMessageForwardInfo.init)
+                        var attributes = currentMessage.attributes
+                        var previousReactions: ReactionsMessageAttribute?
+                        let _ = previousReactions
+                        var added = false
+                        loop: for j in 0 ..< attributes.count {
+                            if let attribute = attributes[j] as? ReactionsMessageAttribute {
+                                added = true
+                                previousReactions = attribute
+                                updatedReactions = attribute.withUpdatedResults(reactions)
+
+                                if updatedReactions == attribute {
+                                    return .skip
+                                }
+                                attributes[j] = updatedReactions
+                                break loop
                             }
-                            attributes[j] = updatedReactions
-                            break loop
                         }
-                    }
-                    if !added {
-                        attributes.append(updatedReactions)
-                    }
-                    
-                    var tags = currentMessage.tags
-                    if updatedReactions.hasUnseen {
-                        tags.insert(.unseenReaction)
-                    } else {
-                        tags.remove(.unseenReaction)
-                    }
-                    
-                    return .update(StoreMessage(id: currentMessage.id, customStableId: nil, globallyUniqueId: currentMessage.globallyUniqueId, groupingKey: currentMessage.groupingKey, threadId: currentMessage.threadId, timestamp: currentMessage.timestamp, flags: StoreMessageFlags(currentMessage.flags), tags: tags, globalTags: currentMessage.globalTags, localTags: currentMessage.localTags, forwardInfo: storeForwardInfo, authorId: currentMessage.author?.id, text: currentMessage.text, attributes: attributes, media: currentMessage.media))
-                })
+                        if !added {
+                            attributes.append(updatedReactions)
+                        }
+
+                        var tags = currentMessage.tags
+                        if updatedReactions.hasUnseen {
+                            tags.insert(.unseenReaction)
+                        } else {
+                            tags.remove(.unseenReaction)
+                        }
+
+                        return .update(StoreMessage(id: currentMessage.id, customStableId: nil, globallyUniqueId: currentMessage.globallyUniqueId, groupingKey: currentMessage.groupingKey, threadId: currentMessage.threadId, timestamp: currentMessage.timestamp, flags: StoreMessageFlags(currentMessage.flags), tags: tags, globalTags: currentMessage.globalTags, localTags: currentMessage.localTags, forwardInfo: storeForwardInfo, authorId: currentMessage.author?.id, text: currentMessage.text, attributes: attributes, media: currentMessage.media))
+                    })
+                }
             case .UpdateAttachMenuBots:
                 syncAttachMenuBots = true
             case let .UpdateAudioTranscription(messageId, id, isPending, text):

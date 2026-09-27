@@ -124,6 +124,8 @@ func _internal_savedMessageTags(transaction: Transaction) -> SavedMessageTags? {
 }
 
 func _internal_setSavedMessageTags(transaction: Transaction, savedMessageTags: SavedMessageTags) {
+    let local = ayuSettings(transaction: transaction).ayuLocalSavedTags
+    let savedMessageTags = local.flatMap { ayuUsesLocalSavedTags(transaction: transaction, peerId: PeerId($0.peerId)) ? $0.tags : nil } ?? savedMessageTags
     let key = ValueBoxKey(length: 8)
     key.setInt64(0, value: 0)
     
@@ -224,7 +226,8 @@ func managedSynchronizeSavedMessageTags(postbox: Postbox, network: Network, acco
 }
 
 func _internal_setSavedMessageTagTitle(account: Account, reaction: MessageReaction.Reaction, title: String?) -> Signal<Never, NoError> {
-    return account.postbox.transaction { transaction -> Void in
+    return account.postbox.transaction { transaction -> Bool in
+        let ayuLocalTags = ayuUsesLocalSavedTags(transaction: transaction, peerId: account.peerId)
         let value = _internal_savedMessageTags(transaction: transaction) ?? SavedMessageTags(hash: 0, tags: [])
         var updatedTags = value.tags
         if let index = updatedTags.firstIndex(where: { $0.reaction == reaction }) {
@@ -232,9 +235,18 @@ func _internal_setSavedMessageTagTitle(account: Account, reaction: MessageReacti
         } else {
             updatedTags.append(SavedMessageTags.Tag(reaction: reaction, title: title, count: 0))
         }
+        if ayuLocalTags {
+            var settings = ayuSettings(transaction: transaction)
+            var local = settings.ayuLocalSavedTags ?? AyuLocalSavedTags(peerId: account.peerId.toInt64(), serverTags: value)
+            local.titles = updatedTags
+            settings.ayuLocalSavedTags = local
+            transaction.updatePreferencesEntry(key: PreferencesKeys.ayuSettings, { _ in PreferencesEntry(settings) })
+        }
         _internal_setSavedMessageTags(transaction: transaction, savedMessageTags: SavedMessageTags(hash: 0, tags: updatedTags))
+        return ayuLocalTags
     }
-    |> mapToSignal { _ -> Signal<Never, NoError> in
+    |> mapToSignal { ayuLocalTags -> Signal<Never, NoError> in
+        if ayuLocalTags { return .complete() }
         var flags: Int32 = 0
         if title != nil {
             flags |= 1 << 0

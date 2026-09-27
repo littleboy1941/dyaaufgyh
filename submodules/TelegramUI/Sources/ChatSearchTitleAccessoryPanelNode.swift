@@ -580,7 +580,7 @@ final class ChatSearchTitleAccessoryPanelNode: ChatTitleAccessoryPanelNode, Chat
         let hadItemViews = !self.itemViews.isEmpty
         var isFirst = true
         
-        if !params.interfaceState.isPremium {
+        if !params.interfaceState.isPremium && !self.context.ayuLocalPremium {
             let promoView: PromoView
             var itemTransition = transition
             if let current = self.promoView {
@@ -636,7 +636,7 @@ final class ChatSearchTitleAccessoryPanelNode: ChatTitleAccessoryPanelNode, Chat
                         return
                     }
                     
-                    if !params.interfaceState.isPremium {
+                    if !params.interfaceState.isPremium && !self.context.ayuLocalPremium {
                         if let chatController = self.interfaceInteraction?.chatController() {
                             (chatController as? ChatControllerImpl)?.presentTagPremiumPaywall()
                         }
@@ -666,7 +666,7 @@ final class ChatSearchTitleAccessoryPanelNode: ChatTitleAccessoryPanelNode, Chat
                         return
                     }
                     
-                    if !params.interfaceState.isPremium {
+                    if !params.interfaceState.isPremium && !self.context.ayuLocalPremium {
                         (chatController as? ChatControllerImpl)?.presentTagPremiumPaywall()
                         return
                     }
@@ -703,7 +703,7 @@ final class ChatSearchTitleAccessoryPanelNode: ChatTitleAccessoryPanelNode, Chat
                     isSelected = true
                 }
             }
-            let itemSize = itemView.update(item: item, isSelected: isSelected, isLocked: !params.interfaceState.isPremium, theme: params.interfaceState.theme, height: panelHeight, transition: .immediate)
+            let itemSize = itemView.update(item: item, isSelected: isSelected, isLocked: (!params.interfaceState.isPremium && !self.context.ayuLocalPremium), theme: params.interfaceState.theme, height: panelHeight, transition: .immediate)
             let itemFrame = CGRect(origin: CGPoint(x: contentSize.width, y: 0.0), size: itemSize)
             
             itemTransition.updatePosition(layer: itemView.layer, position: itemFrame.center)

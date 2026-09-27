@@ -495,7 +495,7 @@ private final class StickerPackContainer: ASDisplayNode {
                             if case let .user(user) = peer, user.isPremium {
                                 hasPremium = true
                             }
-                            return hasPremium
+                            return hasPremium || strongSelf.context.ayuLocalPremium
                         }
                     )
                     |> deliverOnMainQueue
@@ -826,16 +826,13 @@ private final class StickerPackContainer: ASDisplayNode {
         
         let accountPeerId = context.account.peerId
         
-        return context.engine.data.get(TelegramEngine.EngineData.Item.Peer.Peer(id: accountPeerId))
-        |> map { peer -> Bool in
-            var hasPremium = false
-            if case let .user(user) = peer, user.isPremium {
-                hasPremium = true
-            }
-            return hasPremium
-        }
+        return context.engine.data.get(
+            TelegramEngine.EngineData.Item.Peer.Peer(id: accountPeerId),
+            TelegramEngine.EngineData.Item.Configuration.Ayu()
+        )
         |> deliverOnMainQueue
-        |> map { [weak self, weak itemLayer] hasPremium -> (UIView, CGRect, PeekControllerContent)? in
+        |> map { [weak self, weak itemLayer] peer, ayuSettings -> (UIView, CGRect, PeekControllerContent)? in
+            let hasPremium = peer?.isPremium ?? false
             guard let strongSelf = self, let itemLayer = itemLayer else {
                 return nil
             }
@@ -846,7 +843,7 @@ private final class StickerPackContainer: ASDisplayNode {
             let presentationData = context.sharedContext.currentPresentationData.with { $0 }
             
             var isLocked = false
-            if !hasPremium {
+            if !hasPremium && !ayuSettings.localPremium {
                 isLocked = file.isPremiumEmoji
                 /*if isLocked && chatPeerId == context.account.peerId {
                     isLocked = false
@@ -947,7 +944,7 @@ private final class StickerPackContainer: ASDisplayNode {
                     return
                 }
                 
-                if hasPremium {
+                if hasPremium || strongSelf.context.ayuLocalPremium {
                     setStatus(file)
                 } else {
                     var replaceImpl: ((ViewController) -> Void)?
@@ -1580,6 +1577,7 @@ private final class StickerPackContainer: ASDisplayNode {
     }
     
     private func updateStickerPackContents(_ contents: [LoadedStickerPack], hasPremium: Bool) {
+        let hasPremium = hasPremium || self.context.ayuLocalPremium
         self.currentContents = contents
         self.didReceiveStickerPackResult = true
         
@@ -1745,7 +1743,7 @@ private final class StickerPackContainer: ASDisplayNode {
                         addItem(item, false, false)
                     }
                     
-                    if !premiumConfiguration.isPremiumDisabled {
+                    if !premiumConfiguration.isPremiumDisabled || self.context.ayuLocalPremium {
                         if !premiumItems.isEmpty {
                             for item in premiumItems {
                                 addItem(item, true, !hasPremium)
@@ -1801,7 +1799,7 @@ private final class StickerPackContainer: ASDisplayNode {
         guard let (info, items, _) = self.currentStickerPack else {
             return
         }
-        let hasPremium = self.context.isPremium
+        let hasPremium = self.context.isPremium || self.context.ayuLocalPremium
         let previousEntries = self.currentEntries
         var entries: [StickerPackPreviewGridEntry] = []
         

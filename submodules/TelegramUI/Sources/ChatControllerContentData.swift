@@ -2182,9 +2182,12 @@ extension ChatControllerImpl {
                     if baseLanguageCode.contains("-") {
                         baseLanguageCode = baseLanguageCode.components(separatedBy: "-").first ?? baseLanguageCode
                     }
-                    let isPremium = context.engine.data.subscribe(TelegramEngine.EngineData.Item.Peer.Peer(id: context.account.peerId))
-                    |> map { peer -> Bool in
-                        return peer?.isPremium ?? false
+                    let isPremium = context.engine.data.subscribe(
+                        TelegramEngine.EngineData.Item.Peer.Peer(id: context.account.peerId),
+                        TelegramEngine.EngineData.Item.Configuration.Ayu()
+                    )
+                    |> map { peer, ayu -> Bool in
+                        return (peer?.isPremium ?? false) || ayu.localPremium
                     } |> distinctUntilChanged
                     
                     let isHidden = context.engine.data.subscribe(TelegramEngine.EngineData.Item.Peer.TranslationHidden(id: peerId))
