@@ -20,7 +20,9 @@ concurrency:
 
 jobs:
   build:
-    runs-on: macos-26-intel
+    # Apple Silicon (3 CPU M1 / 7 GB): a cold build on macos-26-intel no longer
+    # fit in 240 min (run 39946009594 stopped at 5406/5763).
+    runs-on: macos-26
     timeout-minutes: 360
 
     steps:
@@ -62,8 +64,9 @@ jobs:
         run: |
           cd /Users/Shared/telegram-ios
           HASH=$(cat versions.json MODULE.bazel.lock .bazelrc <(git ls-tree -r HEAD | grep '^160000') | shasum -a 256 | cut -c1-16)
-          echo "prefix=bazel-${{ inputs.mode }}-${{ inputs.configuration }}-" >> "$GITHUB_OUTPUT"
-          echo "base=bazel-${{ inputs.mode }}-${{ inputs.configuration }}-$HASH" >> "$GITHUB_OUTPUT"
+          # The host arch is part of the key: Intel and Apple Silicon actions differ
+          echo "prefix=bazel-${{ runner.arch }}-${{ inputs.mode }}-${{ inputs.configuration }}-" >> "$GITHUB_OUTPUT"
+          echo "base=bazel-${{ runner.arch }}-${{ inputs.mode }}-${{ inputs.configuration }}-$HASH" >> "$GITHUB_OUTPUT"
 
       - name: Restore Bazel cache
         uses: actions/cache/restore@v4
@@ -80,7 +83,7 @@ jobs:
       # Shorter than the job timeout: if the runner hangs the build step is killed
       # while there is still time to save the Bazel cache.
       - name: Build
-        timeout-minutes: 240
+        timeout-minutes: 330
         env:
           TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
           TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
@@ -93,17 +96,18 @@ jobs:
           # numbers above the first builds (3737).
           BUILD_NUMBER=$(( ${{ github.run_number }} + 4000 ))
 
-          # versions.json pins only the darwin-arm64 Bazel hash; on Intel fetch the
-          # official x86_64 binary and verify it against the release checksum
+          # Fetch the official Bazel binary for the runner arch and verify it
+          # against the release checksum (versions.json pins only darwin-arm64)
           BAZEL_VERSION=$(python3 -c 'import json;print(json.load(open("versions.json"))["bazel"].split(":")[0])')
-          BAZEL="$PWD/build-input/bazel-$BAZEL_VERSION-darwin-x86_64"
+          BAZEL_ARCH=$(uname -m)
+          BAZEL="$PWD/build-input/bazel-$BAZEL_VERSION-darwin-$BAZEL_ARCH"
           mkdir -p build-input
-          curl -fsSL -o "$BAZEL" "https://github.com/bazelbuild/bazel/releases/download/$BAZEL_VERSION/bazel-$BAZEL_VERSION-darwin-x86_64"
-          curl -fsSL "https://github.com/bazelbuild/bazel/releases/download/$BAZEL_VERSION/bazel-$BAZEL_VERSION-darwin-x86_64.sha256" \
+          curl -fsSL -o "$BAZEL" "https://github.com/bazelbuild/bazel/releases/download/$BAZEL_VERSION/bazel-$BAZEL_VERSION-darwin-$BAZEL_ARCH"
+          curl -fsSL "https://github.com/bazelbuild/bazel/releases/download/$BAZEL_VERSION/bazel-$BAZEL_VERSION-darwin-$BAZEL_ARCH.sha256" \
             | sed "s#bazel-.*#$BAZEL#" | shasum -a 256 -c -
           chmod +x "$BAZEL"
 
-          # The standard runner (4 CPU / 14 GB) lost connection after ~75 min of an
+          # The Intel runner (4 CPU / 14 GB) lost connection after ~75 min of an
           # unthrottled build and hung at the end of a debug build (the runner has no
           # swap); keep Bazel and Swift workers from exhausting memory.
           cat >> .bazelrc <<'EOF'
@@ -115,7 +119,7 @@ jobs:
 
           # Resource log to diagnose runner starvation
           ( while true; do
-              FREE_MB=$(( $(vm_stat | awk '/Pages free/ {print $3}' | tr -d .) * 4096 / 1048576 ))
+              FREE_MB=$(( $(vm_stat | awk '/Pages free/ {print $3}' | tr -d .) * $(pagesize) / 1048576 ))
               echo "[monitor] $(date -u +%H:%M:%S) free=${FREE_MB}MB load=$(sysctl -n vm.loadavg)"
               sleep 120
             done ) &
@@ -162,6 +166,19 @@ jobs:
       - name: Report disk usage
         if: always()
         run: df -h /
+
+      # After a timeout the Bazel server (a daemon) keeps writing to the disk
+      # cache and saving it fails with "file changed as we read it" (run
+      # 39946009594): stop Bazel and its workers first.
+      - name: Stop Bazel
+        if: always()
+        run: |
+          pkill -f _bazel_containerhost || true
+          for i in $(seq 1 30); do
+            pgrep -f _bazel_containerhost > /dev/null || break
+            sleep 2
+          done
+          pkill -9 -f _bazel_containerhost || true
 
       # The whole repo gets 10 GB of cache; don't try to save an entry that can't fit.
       - name: Check Bazel cache size
