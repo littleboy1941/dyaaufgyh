@@ -144,7 +144,11 @@ final class CameraOutput: NSObject {
             self.photoOutput.maxPhotoQualityPrioritization = .balanced
         }
         
-        self.videoOutput.alwaysDiscardsLateVideoFrames = false
+        // AyuGram: a round video effect can take longer than a camera frame;
+        // queued late frames would pile up into a growing delay, so drop them
+        // (as the RoundLab stand does). use32BGRA is set for round videos only
+        // (Camera.swift).
+        self.videoOutput.alwaysDiscardsLateVideoFrames = use32BGRA && AyuRoundEffects.anyEnabled
         self.videoOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey: use32BGRA ? kCVPixelFormatType_32BGRA : kCVPixelFormatType_420YpCbCr8BiPlanarFullRange] as [String : Any]
     }
     
