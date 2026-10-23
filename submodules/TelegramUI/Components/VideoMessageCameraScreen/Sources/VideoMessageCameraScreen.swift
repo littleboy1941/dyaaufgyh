@@ -877,6 +877,8 @@ public class VideoMessageCameraScreen: ViewController {
         
         fileprivate var mainPreviewView: CameraSimplePreviewView
         fileprivate var additionalPreviewView: CameraSimplePreviewView
+        // AyuGram: processed frames over the raw camera while a round effect is on.
+        private var ayuEffectPreviewView: AyuRoundEffectPreviewView?
         private var progressView: RecordingProgressView
         private let loadingView: LoadingEffectView
         
@@ -994,6 +996,11 @@ public class VideoMessageCameraScreen: ViewController {
             self.previewContainerContentView.addSubview(self.mainPreviewView)
             if isDualCameraEnabled {
                 self.previewContainerContentView.addSubview(self.additionalPreviewView)
+            }
+            if AyuRoundEffects.anyEnabled {
+                let ayuEffectPreviewView = AyuRoundEffectPreviewView(frame: .zero)
+                self.previewContainerContentView.addSubview(ayuEffectPreviewView)
+                self.ayuEffectPreviewView = ayuEffectPreviewView
             }
             self.previewContainerContentView.addSubview(self.progressView)
             self.previewContainerContentView.addSubview(self.previewBlurView)
@@ -1164,7 +1171,8 @@ public class VideoMessageCameraScreen: ViewController {
         }
         
         private func animatePositionChange() {
-            if let snapshotView = self.mainPreviewView.snapshotView(afterScreenUpdates: false) {
+            // AyuGram: no snapshot of the raw camera over the effect preview.
+            if self.ayuEffectPreviewView == nil, let snapshotView = self.mainPreviewView.snapshotView(afterScreenUpdates: false) {
                 self.previewContainerContentView.insertSubview(snapshotView, belowSubview: self.progressView)
                 self.previewSnapshotView = snapshotView
                 
@@ -1543,6 +1551,7 @@ public class VideoMessageCameraScreen: ViewController {
                 self.mainPreviewView.frame = self.cameraState.position == .front ? additionalPreviewInnerFrame : previewInnerFrame
             }
             
+            self.ayuEffectPreviewView?.frame = previewBounds
             self.progressView.frame = previewBounds
             self.progressView.value = CGFloat(self.cameraState.duration / 60.0)
             

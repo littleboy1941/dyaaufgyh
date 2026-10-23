@@ -149,12 +149,25 @@ def check_settings_order():
         )
     }
 
+    # эффекты кружков: `case let .roundEffect(effect, _): return 1001 + effect.rawValue`
+    round_body = re.search(r"private enum AyuRoundEffectToggle: Int32 \{(.*?)\n    var key", source, re.S)
+    round_ids = {}
+    if round_body:
+        round_ids = {
+            name: 1001 + index
+            for index, name in enumerate(re.findall(r"^    case (\w+)", round_body.group(1), re.M))
+        }
+
     entries_fn = re.search(r"private func ayuSettingsEntries.*?\n\}", source, re.S).group(0)
     sequence = []
     for line in entries_fn.split("\n"):
         match = re.search(r"entries\.append\(\.toggle\(\.(\w+)", line)
         if match:
             sequence.append((match.group(1), toggle_ids[match.group(1)]))
+            continue
+        match = re.search(r"entries\.append\(\.roundEffect\(\.(\w+)", line)
+        if match:
+            sequence.append((match.group(1), round_ids[match.group(1)]))
             continue
         match = re.search(r"entries\.append\(\.(\w+)\)", line)
         if match:

@@ -12,9 +12,48 @@ import AccountContext
 
 private final class AyuSettingsControllerArguments {
     let update: (AyuSettingsToggle, Bool) -> Void
+    let updateRoundEffect: (AyuRoundEffectToggle, Bool) -> Void
 
-    init(update: @escaping (AyuSettingsToggle, Bool) -> Void) {
+    init(update: @escaping (AyuSettingsToggle, Bool) -> Void, updateRoundEffect: @escaping (AyuRoundEffectToggle, Bool) -> Void) {
         self.update = update
+        self.updateRoundEffect = updateRoundEffect
+    }
+}
+
+// Round video effects are a device setting kept in UserDefaults; the same
+// keys are read by Camera/Sources/AyuRoundEffects.swift.
+private enum AyuRoundEffectToggle: Int32 {
+    case tvStatic
+    case blobTrack
+
+    var key: String {
+        switch self {
+        case .tvStatic:
+            return "ayu.roundEffects.tvStatic"
+        case .blobTrack:
+            return "ayu.roundEffects.blobTrack"
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .tvStatic:
+            return "ТВ-шум (фронтальная камера)"
+        case .blobTrack:
+            return "Блоб-трекинг (основная камера)"
+        }
+    }
+}
+
+private struct AyuRoundEffectsState: Equatable {
+    var tvStatic: Bool
+    var blobTrack: Bool
+
+    static func current() -> AyuRoundEffectsState {
+        return AyuRoundEffectsState(
+            tvStatic: UserDefaults.standard.bool(forKey: AyuRoundEffectToggle.tvStatic.key),
+            blobTrack: UserDefaults.standard.bool(forKey: AyuRoundEffectToggle.blobTrack.key)
+        )
     }
 }
 
@@ -168,6 +207,7 @@ private enum AyuSettingsSection: Int32 {
     case ghost
     case ghostOptions
     case premium
+    case roundEffects
 }
 
 private enum AyuSettingsEntry: ItemListNodeEntry {
@@ -191,6 +231,9 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
     case ghostOptionsFooter
     case premiumHeader
     case premiumFooter
+    case roundEffectsHeader
+    case roundEffect(AyuRoundEffectToggle, Bool)
+    case roundEffectsFooter
 
     var section: ItemListSectionId {
         switch self {
@@ -241,6 +284,8 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
             return AyuSettingsSection.premium.rawValue
         case .ghostOptionsFooter:
             return AyuSettingsSection.ghostOptions.rawValue
+        case .roundEffectsHeader, .roundEffect, .roundEffectsFooter:
+            return AyuSettingsSection.roundEffects.rawValue
         }
     }
 
@@ -330,6 +375,12 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
             return 902
         case .ghostOptionsFooter:
             return 800
+        case .roundEffectsHeader:
+            return 1000
+        case let .roundEffect(effect, _):
+            return 1001 + effect.rawValue
+        case .roundEffectsFooter:
+            return 1003
         }
     }
 
@@ -382,11 +433,19 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
             return ItemListTextItem(presentationData: presentationData, text: .plain("Telegram не умеет разворачивать превью для x.com, Reddit, TikTok, Instagram и Pixiv. Превью запрашивается через зеркало (fixupx.com, vxreddit.com и подобные), поэтому картинка и текст появляются и у вас, и у собеседника. Текст самого сообщения не меняется: адрес остаётся тот, который вы написали."), sectionId: self.section)
         case .scopeFooter:
             return ItemListTextItem(presentationData: presentationData, text: .plain("Медиа удалённых сообщений не стирается ни ручной очисткой кэша, ни автоудалением по сроку хранения. Исключение — лимит размера кэша: при нём старые файлы могут удалиться."), sectionId: self.section)
+        case .roundEffectsHeader:
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: "ЭФФЕКТЫ КРУЖКОВ", sectionId: self.section)
+        case let .roundEffect(effect, value):
+            return ItemListSwitchItem(presentationData: presentationData, systemStyle: .glass, title: effect.title, value: value, sectionId: self.section, style: .blocks, updated: { value in
+                arguments.updateRoundEffect(effect, value)
+            })
+        case .roundEffectsFooter:
+            return ItemListTextItem(presentationData: presentationData, text: .plain("Эффект накладывается прямо при съёмке кружка и виден уже во время записи. ТВ-шум закрывает людей в кадре фронтальной камеры, блоб-трекинг рисует рамки, номера и линии поверх кадра основной камеры. Если эффект не сработал, кадр закрывается, а не уходит как есть. Применяется к следующему кружку."), sectionId: self.section)
         }
     }
 }
 
-private func ayuSettingsEntries(settings: AyuSettings) -> [AyuSettingsEntry] {
+private func ayuSettingsEntries(settings: AyuSettings, roundEffects: AyuRoundEffectsState) -> [AyuSettingsEntry] {
     var entries: [AyuSettingsEntry] = []
 
     entries.append(.deletedHeader)
@@ -445,26 +504,37 @@ private func ayuSettingsEntries(settings: AyuSettings) -> [AyuSettingsEntry] {
     entries.append(.toggle(.localPremium, settings.localPremium))
     entries.append(.premiumFooter)
 
+    entries.append(.roundEffectsHeader)
+    entries.append(.roundEffect(.tvStatic, roundEffects.tvStatic))
+    entries.append(.roundEffect(.blobTrack, roundEffects.blobTrack))
+    entries.append(.roundEffectsFooter)
+
     return entries
 }
 
 public func ayuSettingsController(context: AccountContext) -> ViewController {
+    let roundEffectsPromise = ValuePromise<AyuRoundEffectsState>(AyuRoundEffectsState.current(), ignoreRepeated: true)
+
     let arguments = AyuSettingsControllerArguments(update: { toggle, value in
         let _ = context.engine.ayuUpdateSettings({ settings in
             var settings = settings
             settings[keyPath: toggle.keyPath] = value
             return settings
         }).startStandalone()
+    }, updateRoundEffect: { effect, value in
+        UserDefaults.standard.set(value, forKey: effect.key)
+        roundEffectsPromise.set(AyuRoundEffectsState.current())
     })
 
     let signal = combineLatest(queue: .mainQueue(),
         context.sharedContext.presentationData,
-        context.engine.data.subscribe(TelegramEngine.EngineData.Item.Configuration.Ayu())
+        context.engine.data.subscribe(TelegramEngine.EngineData.Item.Configuration.Ayu()),
+        roundEffectsPromise.get()
     )
     |> deliverOnMainQueue
-    |> map { presentationData, settings -> (ItemListControllerState, (ItemListNodeState, Any)) in
+    |> map { presentationData, settings, roundEffects -> (ItemListControllerState, (ItemListNodeState, Any)) in
         let controllerState = ItemListControllerState(presentationData: ItemListPresentationData(presentationData), title: .text("Goldagram"), leftNavigationButton: nil, rightNavigationButton: nil, backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back))
-        let listState = ItemListNodeState(presentationData: ItemListPresentationData(presentationData), entries: ayuSettingsEntries(settings: settings), style: .blocks, animateChanges: true)
+        let listState = ItemListNodeState(presentationData: ItemListPresentationData(presentationData), entries: ayuSettingsEntries(settings: settings, roundEffects: roundEffects), style: .blocks, animateChanges: true)
 
         return (controllerState, (listState, arguments))
     }

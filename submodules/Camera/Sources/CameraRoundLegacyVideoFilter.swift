@@ -75,7 +75,8 @@ final class CameraRoundLegacyVideoFilter {
     
     private var lastMainSourceImage: CIImage?
     private var lastAdditionalSourceImage: CIImage?
-    
+    private let ayuEffects = AyuRoundEffectProcessor()
+
     func render(pixelBuffer: CVPixelBuffer, additional: Bool, captureOrientation: AVCaptureVideoOrientation, transitionFactor: CGFloat) -> CVPixelBuffer? {
         guard let resizeFilter = self.resizeFilter, let overlayFilter = self.overlayFilter, let compositeFilter = self.compositeFilter, let borderFilter = self.borderFilter, self.isPrepared else {
             return nil
@@ -122,6 +123,12 @@ final class CameraRoundLegacyVideoFilter {
             sourceImage = sourceImage.cropped(to: CGRect(x: 0.0, y: 0.0, width: sourceImage.extent.width, height: sourceImage.extent.width))
         }
         
+        // AyuGram: round video effects, on each camera's own square before
+        // the crossfade (`additional` is the front camera here).
+        if AyuRoundEffects.isEnabled(front: additional) {
+            sourceImage = self.ayuEffects.apply(to: sourceImage, front: additional, time: CACurrentMediaTime())
+        }
+
         if additional {
             self.lastAdditionalSourceImage = sourceImage
         } else {

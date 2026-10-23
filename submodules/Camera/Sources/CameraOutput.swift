@@ -554,6 +554,7 @@ final class CameraOutput: NSObject {
                     || (transitionFactor == 0.0 && !fromAdditionalOutput)
                     || (transitionFactor > 0.0 && transitionFactor < 1.0) {
                     if let processedSampleBuffer = self.processRoundVideoSampleBuffer(sampleBuffer, additional: fromAdditionalOutput, transitionFactor: transitionFactor) {
+                        self.ayuDeliverPreview(processedSampleBuffer)
                         let presentationTime = CMSampleBufferGetPresentationTimeStamp(processedSampleBuffer)
                         if let lastSampleTimestamp = self.lastSampleTimestamp, lastSampleTimestamp > presentationTime {
                             
@@ -586,7 +587,10 @@ final class CameraOutput: NSObject {
                 }
                 if let processedSampleBuffer = self.processRoundVideoSampleBuffer(sampleBuffer, additional: additional, transitionFactor: transitionFactor) {
                     videoRecorder.appendSampleBuffer(processedSampleBuffer)
-                } else {
+                    self.ayuDeliverPreview(processedSampleBuffer)
+                } else if !AyuRoundEffects.anyEnabled {
+                    // AyuGram: with a round effect on, an unprocessed frame
+                    // is dropped instead of being recorded raw.
                     videoRecorder.appendSampleBuffer(sampleBuffer)
                 }
             }
@@ -613,6 +617,15 @@ final class CameraOutput: NSObject {
         }
     }
     
+    // AyuGram: the processed round frame also goes to the preview of the
+    // round video screen while an effect is on.
+    private func ayuDeliverPreview(_ processedSampleBuffer: CMSampleBuffer) {
+        guard AyuRoundEffects.anyEnabled, let pixelBuffer = CMSampleBufferGetImageBuffer(processedSampleBuffer) else {
+            return
+        }
+        AyuRoundEffects.deliverPreview(pixelBuffer)
+    }
+
     private func processRoundVideoSampleBuffer(_ sampleBuffer: CMSampleBuffer, additional: Bool, transitionFactor: CGFloat) -> CMSampleBuffer? {
         guard let videoPixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer), let formatDescription = CMSampleBufferGetFormatDescription(sampleBuffer) else {
             return nil
